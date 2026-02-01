@@ -4,6 +4,7 @@
 
 @theme {
   --font-sans: var(--font-inter);
+  --font-serif: var(--font-instrument);
   --font-mono: var(--font-geist-mono);
 
   --color-background: hsl(var(--background));
@@ -36,73 +37,172 @@
 }
 
 :root {
-  /* Slate-900 base (#0F172A) */
-  --background: 222 47% 11%;
+  /* LIGHT MODE (Soft Warm Paper) */
+  --background: 35 30% 94%;
+  /* Warmer and darker for less eye strain */
+  /* Slightly darker/warmer than pure white */
+  --foreground: 240 10% 4%;
 
-  /* Slate-200 text (#E2E8F0) */
-  --foreground: 214 32% 91%;
+  --card: 40 20% 95%;
+  /* Slightly darker card for depth */
+  --card-foreground: 240 10% 4%;
 
-  /* Slate-900 card */
-  --card: 222 47% 11%;
-  --card-foreground: 214 32% 91%;
+  --popover: 40 20% 97%;
+  --popover-foreground: 240 10% 4%;
 
-  /* Slate-900 popover */
-  --popover: 222 47% 11%;
-  --popover-foreground: 214 32% 91%;
+  --primary: 240 6% 10%;
+  /* Softer black for primary */
+  --primary-foreground: 0 0% 98%;
 
-  /* Indigo-500 Primary Action (#6366F1) */
-  --primary: 249 87% 67%;
-  /* Dark text on primary */
-  --primary-foreground: 222 47% 11%;
+  --secondary: 240 5% 94%;
+  /* Darker secondary for contrast */
+  --secondary-foreground: 240 6% 10%;
 
-  /* Slate-800 Secondary (#1E293B) */
-  --secondary: 215 28% 17%;
-  --secondary-foreground: 214 32% 91%;
+  --muted: 240 5% 93%;
+  /* Darker muted */
+  --muted-foreground: 240 4% 45%;
 
-  /* Slate-800 Muted */
-  --muted: 215 28% 17%;
-  /* Slate-400 Muted Text (#94A3B8) */
-  --muted-foreground: 215 20% 65%;
+  --accent: 240 5% 94%;
+  --accent-foreground: 240 6% 10%;
 
-  /* Slate-800 Accent */
-  --accent: 215 28% 17%;
-  --accent-foreground: 214 32% 91%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 98%;
+
+  --border: 240 6% 88%;
+  /* Slightly darker border */
+  --input: 240 6% 88%;
+  --ring: 240 6% 10%;
+
+  --radius: 0.75rem;
+}
+
+.dark {
+  /* DARK MODE (Neutral Zinc, no blue tint) */
+  --background: 240 10% 4%;
+  /* #09090B */
+  --foreground: 0 0% 98%;
+
+  --card: 240 10% 7%;
+  /* #121214 */
+  --card-foreground: 0 0% 98%;
+
+  --popover: 240 10% 4%;
+  --popover-foreground: 0 0% 98%;
+
+  --primary: 0 0% 98%;
+  /* White for high contrast actions */
+  --primary-foreground: 240 10% 4%;
+
+  --secondary: 240 4% 16%;
+  --secondary-foreground: 0 0% 98%;
+
+  --muted: 240 4% 16%;
+  --muted-foreground: 240 5% 65%;
+
+  --accent: 240 4% 16%;
+  --accent-foreground: 0 0% 98%;
 
   --destructive: 0 62.8% 30.6%;
-  --destructive-foreground: 214 32% 91%;
+  --destructive-foreground: 0 0% 98%;
 
-  /* Slate-700 Border (#334155) */
-  --border: 215 16% 47%;
-  --input: 215 16% 47%;
-
-  /* Indigo-400 Ring */
-  --ring: 249 87% 67%;
-
-  --radius: 0.5rem;
+  --border: 240 4% 16%;
+  --input: 240 4% 16%;
+  --ring: 240 5% 84%;
 }
 
 body {
-  @apply bg-background text-foreground antialiased;
+  @apply bg-background text-foreground antialiased font-sans transition-colors duration-300;
   font-feature-settings: "rlig" 1, "calt" 1;
-  /* Subtle mesh gradient on top of slate background */
-  background-image:
-    radial-gradient(at 0% 0%, hsla(222, 47%, 15%, 1) 0, transparent 50%),
-    radial-gradient(at 100% 100%, hsla(249, 87%, 67%, 0.05) 0, transparent 50%);
-  background-attachment: fixed;
-  background-size: cover;
+}
+
+/* Sophisticated Custom Scrollbar with Arrows - Global Application */
+*::-webkit-scrollbar {
+  width: 14px;
+  /* Slightly wider for the buttons */
+  height: 14px;
+}
+
+*::-webkit-scrollbar-track {
+  background: hsl(var(--muted)/0.3);
+  border-left: 1px solid hsl(var(--border)/0.5);
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground)/0.4);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: 99px;
+  min-height: 40px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--primary)/0.6);
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+/* Scrollbar Buttons (Arrows) */
+*::-webkit-scrollbar-button:single-button {
+  background-color: transparent;
+  display: block;
+  background-size: 10px;
+  background-repeat: no-repeat;
+  background-position: center;
+  height: 16px;
+  width: 14px;
+  cursor: pointer;
+}
+
+/* Up Arrow */
+*::-webkit-scrollbar-button:single-button:vertical:decrement {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' fill='%2364748b' viewBox='0 0 16 16'><path d='M8 4l-6 6h12z'/></svg>");
+}
+
+*::-webkit-scrollbar-button:single-button:vertical:decrement:hover {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' fill='%233b82f6' viewBox='0 0 16 16'><path d='M8 4l-6 6h12z'/></svg>");
+}
+
+/* Down Arrow */
+*::-webkit-scrollbar-button:single-button:vertical:increment {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' fill='%2364748b' viewBox='0 0 16 16'><path d='M8 12l6-6H2z'/></svg>");
+}
+
+*::-webkit-scrollbar-button:single-button:vertical:increment:hover {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' fill='%233b82f6' viewBox='0 0 16 16'><path d='M8 12l6-6H2z'/></svg>");
+}
+
+*::-webkit-scrollbar-button:single-button:vertical:decrement:active,
+*::-webkit-scrollbar-button:single-button:vertical:increment:active {
+  background-color: hsl(var(--muted));
+}
+
+html.dark *::-webkit-scrollbar-button:single-button:vertical:decrement {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' fill='%2394a3b8' viewBox='0 0 16 16'><path d='M8 4l-6 6h12z'/></svg>");
+}
+
+html.dark *::-webkit-scrollbar-button:single-button:vertical:increment {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' fill='%2394a3b8' viewBox='0 0 16 16'><path d='M8 12l6-6H2z'/></svg>");
 }
 
 @layer utilities {
   .glass {
-    @apply bg-slate-900/40 backdrop-blur-xl border border-slate-700/50 shadow-xl;
+    @apply bg-white/10 backdrop-blur-lg border border-white/20 shadow-lg;
+  }
+
+  .glass-card {
+    @apply bg-card/60 backdrop-blur-md border border-border/50 shadow-sm relative;
   }
 
   .glass-input {
-    @apply bg-slate-800/20 backdrop-blur-sm border-slate-700/50 focus:bg-slate-800/40 focus:border-indigo-500/50 transition-all duration-300;
+    @apply bg-muted/50 backdrop-blur-sm border-transparent focus:bg-background focus:ring-2 focus:ring-ring/10 focus:border-border transition-all duration-300;
   }
 
   .skeleton-shimmer {
-    @apply relative overflow-hidden bg-slate-800/50 before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_2s_infinite] before:bg-gradient-to-r before:from-transparent before:via-white/5 before:to-transparent;
+    @apply relative overflow-hidden bg-muted before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_2s_infinite] before:bg-gradient-to-r before:from-transparent before:via-foreground/5 before:to-transparent;
   }
 }
 

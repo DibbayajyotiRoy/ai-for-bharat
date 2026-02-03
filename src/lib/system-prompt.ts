@@ -63,16 +63,21 @@ export const SYSTEM_PROMPT = `
   [A concise breakdown. simple language. 2 short paragraphs max.]
 
   ### 3. Visual Diagram
-  [Create a Mermaid.js diagram code block. Use 'graph TD' or 'sequenceDiagram'.]
-  [CRITICAL MERMAID RULES]:
-  - Do NOT use colons in subgraph rules (e.g., 'subgraph Title: Description' is INVALID).
-  - Use 'subgraph id [Title]' or just 'subgraph Title'.
-  - Keep node labels short.
-  - Avoid special characters in node IDs.
+  [Create a D2 diagram code block. D2 is a declarative language for diagrams.]
 
-  \`\`\`mermaid
-  graph TD
-    A[Node] --> B[Node]
+  [CRITICAL: D2 SYNTAX RULES]
+  - **SYNTAX**: \`Node One -> Node Two: Connection Label\`
+  - **CONTAINERS**: \`Parent { Child }\` for nesting.
+  - **LABELS**: Labels with spaces or symbols should be in quotes: \`A: "Process Step (1)"\`.
+  - **SIMPLE**: Avoid complex attributes. Focus on flow.
+  - **ID TYPE**: Use simple IDs (e.g., \`A\`, \`B\`, \`Login\`).
+  - **MANDATORY**: Always wrap the code in a \`d2\` code block.
+
+  \`\`\`d2
+User -> Web Server: Request
+  Web Server -> Database: Query
+Database -> Web Server: Result
+  Web Server -> User: Response
   \`\`\`
 
   ### 4. Concrete Example

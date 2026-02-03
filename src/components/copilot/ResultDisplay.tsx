@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MermaidDiagram } from './MermaidDiagram';
+import { D2Diagram } from './D2Diagram';
 import { Check, ChevronDown, ChevronUp, Copy, BookOpen } from 'lucide-react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -129,17 +129,17 @@ export function ResultDisplay({ content, theme }: ResultDisplayProps) {
                 </div>
 
                 {/* 3. RIGHT PANE: Visual Diagram (Fixed/Fit) */}
-                <div className="flex-1 glass-card rounded-xl p-4 flex flex-col relative overflow-hidden">
+                <div className="flex-1 glass-card rounded-xl p-4 flex flex-col relative overflow-hidden h-[400px] md:h-auto">
                     <div className="absolute top-4 left-4 z-10">
-                        <span className="bg-background/80 backdrop-blur text-foreground/60 text-[10px] font-bold px-2 py-0.5 rounded shadow-sm border border-border/50 uppercase tracking-widest">Visual Flow</span>
+                        <span className="bg-background/80 backdrop-blur text-foreground/60 text-[10px] font-bold px-2 py-0.5 rounded shadow-sm border border-border/50 uppercase tracking-widest">System Flowchart</span>
                     </div>
-                    <div className="flex-1 flex items-center justify-center min-h-[300px] bg-muted/20 rounded-lg border border-border/10">
+                    <div className="flex-1 flex items-center justify-center bg-muted/20 rounded-lg border border-border/10 overflow-hidden">
                         {sections.diagram ? (
-                            <MermaidDiagram chart={sections.diagram} />
+                            <D2Diagram chart={sections.diagram} />
                         ) : (
                             <div className="flex flex-col items-center text-muted-foreground/50 animate-pulse">
-                                <BookOpen className="w-8 h-8 mb-2 opacity-50" />
-                                <span className="text-xs uppercase tracking-widest">Generating Visual...</span>
+                                <BookOpen className="w-8 h-8 mb-2 opacity-30" />
+                                <span className="text-[10px] uppercase tracking-[0.2em] font-medium">Synthesizing Visual Flow...</span>
                             </div>
                         )}
                     </div>
@@ -217,7 +217,7 @@ function parseSections(markdown: string) {
     // Extract mermaid code block for diagram
     if (parts.length > 3) {
         const rawDiagram = parts[3]?.replace('Visual Diagram', '').trim();
-        const match = rawDiagram.match(/```mermaid([\s\S]*?)```/);
+        const match = rawDiagram.match(/```d2([\s\S]*?)```/);
         if (match) {
             sections.diagram = match[1].trim();
         }

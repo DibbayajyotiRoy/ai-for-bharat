@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Learning Copilot is an AI-powered web application that transforms complex technical content, code snippets, and concepts into structured, easy-to-understand explanations. The system provides an intuitive interface for users to input content and receive comprehensive explanations tailored to their skill level, complete with visual diagrams and interactive features.
+The Learning Copilot is an AI-powered web application that transforms complex technical content, code snippets, and concepts into structured, easy-to-understand explanations. The system provides an intuitive interface for users to input content and receive comprehensive explanations tailored to their skill level, complete with visual D2 diagrams and interactive features. The application uses Google's Gemini AI models with a robust fallback system to ensure reliability and consistent availability.
 
 ## User Stories and Acceptance Criteria
 
@@ -124,14 +124,14 @@ The Learning Copilot is an AI-powered web application that transforms complex te
 
 #### User Story 3.3: Visual Diagram Generation
 **As a** user  
-**I want** visual diagrams to accompany explanations  
-**So that** I can better understand complex concepts through visualization
+**I want** visual D2 diagrams to accompany explanations  
+**So that** I can better understand complex concepts through structured visualization
 
 **Acceptance Criteria:**
-- 3.3.1 The system generates Mermaid diagrams for visual representation
-- 3.3.2 Diagrams are relevant to the explained content
-- 3.3.3 Diagrams follow proper syntax and rendering standards
-- 3.3.4 The system handles diagram generation failures gracefully
+- 3.3.1 THE System SHALL generate D2 diagrams for visual representation
+- 3.3.2 WHEN diagrams are generated, THE System SHALL ensure they follow proper D2 syntax
+- 3.3.3 THE System SHALL create diagrams relevant to the explained content
+- 3.3.4 WHEN diagram generation fails, THE System SHALL handle failures gracefully with appropriate fallback content
 
 #### User Story 3.4: Content Completeness
 **As a** user  
@@ -150,10 +150,11 @@ The Learning Copilot is an AI-powered web application that transforms complex te
 **So that** I can consistently receive explanations
 
 **Acceptance Criteria:**
-- 3.5.1 The system automatically tries fallback models when primary models fail
-- 3.5.2 The system handles rate limiting and quota issues gracefully
-- 3.5.3 The system provides user feedback about model availability
-- 3.5.4 The system maintains explanation quality across different models
+- 3.5.1 THE System SHALL automatically try fallback models when primary models fail
+- 3.5.2 WHEN rate limiting occurs, THE System SHALL handle quota issues gracefully with exponential backoff
+- 3.5.3 THE System SHALL provide user feedback about model availability and fallback usage
+- 3.5.4 THE System SHALL maintain explanation quality across different Gemini model variants
+- 3.5.5 THE System SHALL use prioritized model list: gemini-2.0-flash, gemini-2.0-flash-lite, gemini-flash-latest, gemini-pro-latest
 
 ### Epic 4: Interactive Result Display
 
@@ -192,14 +193,14 @@ The Learning Copilot is an AI-powered web application that transforms complex te
 
 #### User Story 4.4: Interactive Diagram Display
 **As a** user  
-**I want** to interact with visual diagrams  
-**So that** I can explore and understand complex relationships
+**I want** to view D2 diagrams in a dedicated display area  
+**So that** I can understand visual representations of concepts
 
 **Acceptance Criteria:**
-- 4.4.1 Diagrams are displayed in a dedicated pane
-- 4.4.2 Diagrams support zoom and pan interactions
-- 4.4.3 Diagram controls are intuitive and accessible
-- 4.4.4 Diagrams render properly across different themes
+- 4.4.1 THE System SHALL display D2 diagrams in a dedicated pane
+- 4.4.2 THE System SHALL render diagrams properly across different themes
+- 4.4.3 WHEN diagrams fail to render, THE System SHALL display appropriate error messages
+- 4.4.4 THE System SHALL provide loading indicators while diagrams are being processed
 
 #### User Story 4.5: Collapsible Takeaways
 **As a** user  
@@ -212,62 +213,40 @@ The Learning Copilot is an AI-powered web application that transforms complex te
 - 4.5.3 The expansion/collapse animation is smooth
 - 4.5.4 Takeaways are formatted as scannable bullet points
 
-### Epic 5: Diagram Interactivity
+### Epic 5: Enhanced User Experience
 
-#### User Story 5.1: Zoom Controls
+#### User Story 5.1: Keyboard Shortcuts
 **As a** user  
-**I want** to zoom in and out of diagrams  
-**So that** I can examine details or see the overall structure
+**I want** keyboard shortcuts for common actions  
+**So that** I can use the application efficiently
 
 **Acceptance Criteria:**
-- 5.1.1 The system provides zoom in and zoom out buttons
-- 5.1.2 Zoom controls are easily accessible and visible
-- 5.1.3 Zoom levels are appropriate for diagram readability
-- 5.1.4 The system maintains diagram quality at all zoom levels
+- 5.1.1 THE System SHALL support Cmd/Ctrl+V for pasting content
+- 5.1.2 THE System SHALL support Cmd/Ctrl+Enter for submitting explanations
+- 5.1.3 THE System SHALL display keyboard shortcuts as visual hints
+- 5.1.4 THE System SHALL maintain keyboard accessibility across all interactive elements
 
-#### User Story 5.2: Pan Functionality
+#### User Story 5.2: Content Management
 **As a** user  
-**I want** to pan around large diagrams  
-**So that** I can explore different parts of complex visualizations
+**I want** to easily clear and manage my input content  
+**So that** I can quickly start new explanations
 
 **Acceptance Criteria:**
-- 5.2.1 Users can drag to pan around diagrams
-- 5.2.2 Pan interactions are smooth and responsive
-- 5.2.3 The system provides visual feedback during panning
-- 5.2.4 Pan boundaries prevent diagrams from disappearing
+- 5.2.1 THE System SHALL provide a clear button to empty the input field
+- 5.2.2 THE System SHALL show the clear button only when content is present
+- 5.2.3 THE System SHALL maintain focus on the input field after clearing
+- 5.2.4 THE System SHALL provide visual feedback for all content management actions
 
-#### User Story 5.3: View Reset
+#### User Story 5.3: Advanced Visual Feedback
 **As a** user  
-**I want** to reset diagram view to default  
-**So that** I can return to the original perspective after zooming/panning
+**I want** enhanced visual feedback for different explanation levels  
+**So that** I can understand the complexity of my selected level
 
 **Acceptance Criteria:**
-- 5.3.1 The system provides a reset view button
-- 5.3.2 Reset returns diagram to optimal default view
-- 5.3.3 Reset animation is smooth and intuitive
-- 5.3.4 Reset works consistently across all diagram types
-
-#### User Story 5.4: Diagram Error Handling
-**As a** user  
-**I want** appropriate feedback when diagrams fail to render  
-**So that** I understand what happened and can take appropriate action
-
-**Acceptance Criteria:**
-- 5.4.1 The system displays clear error messages for diagram failures
-- 5.4.2 Error messages suggest possible solutions or alternatives
-- 5.4.3 The system gracefully degrades when diagrams cannot be displayed
-- 5.4.4 Error states maintain overall application stability
-
-#### User Story 5.5: Responsive Diagram Rendering
-**As a** user  
-**I want** diagrams to display properly on all device sizes  
-**So that** I can view visualizations regardless of my screen size
-
-**Acceptance Criteria:**
-- 5.5.1 Diagrams scale appropriately for different screen sizes
-- 5.5.2 Diagram controls remain accessible on mobile devices
-- 5.5.3 Text within diagrams remains readable at all sizes
-- 5.5.4 Diagram interactions work properly on touch devices
+- 5.3.1 WHEN Advanced level is selected, THE System SHALL display special visual effects (glow)
+- 5.3.2 THE System SHALL provide distinct visual styling for each explanation level
+- 5.3.3 THE System SHALL use smooth transitions when changing between levels
+- 5.3.4 THE System SHALL maintain visual consistency across theme changes
 
 ### Epic 6: Real-Time Streaming
 
@@ -629,6 +608,8 @@ The Learning Copilot is an AI-powered web application that transforms complex te
 **Streaming**: Real-time delivery of content as it's generated, allowing users to read while processing continues
 
 **Mermaid Diagram**: A text-based diagramming format that generates visual flowcharts and diagrams
+
+**D2 Diagram**: A declarative diagramming language used for creating structured visual representations of systems and processes
 
 **Fallback Model**: Alternative AI models used when the primary model is unavailable or fails
 

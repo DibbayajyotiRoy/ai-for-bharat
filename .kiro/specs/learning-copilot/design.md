@@ -2,9 +2,9 @@
 
 ## Overview
 
-The Learning Copilot is a sophisticated web application built with Next.js that transforms complex content into structured, interactive learning experiences. The system leverages Google's Gemini AI models to generate comprehensive explanations tailored to different skill levels, presenting them through an intuitive 3-pane interface with interactive diagrams and real-time streaming capabilities.
+The Learning Copilot is a sophisticated web application built with Next.js 16 and React 19 that transforms complex content into structured, interactive learning experiences. The system leverages Google's Gemini AI models with a robust fallback mechanism to generate comprehensive explanations tailored to different skill levels, presenting them through an intuitive 3-pane interface with interactive D2 diagrams and real-time streaming capabilities.
 
-The application follows a modern React architecture with TypeScript for type safety, Tailwind CSS for styling, and Framer Motion for smooth animations. The system is designed for reliability with fallback mechanisms and responsive design principles.
+The application follows a modern React architecture with TypeScript for type safety, Tailwind CSS v4 for styling, and Framer Motion for smooth animations. The system is designed for reliability with multiple fallback mechanisms, responsive design principles, and uses Hono for efficient API routing with edge runtime support.
 
 ## Architecture
 
@@ -13,29 +13,37 @@ The application follows a modern React architecture with TypeScript for type saf
 ```mermaid
 graph TB
     subgraph "Frontend Layer"
-        UI[User Interface]
-        RD[Result Display]
-        DG[Diagram Generator]
+        UI[User Interface - Next.js 16]
+        RD[Result Display Component]
+        DG[D2 Diagram Generator]
         TM[Theme Manager]
+        SM[Streaming Manager]
     end
     
-    subgraph "API Layer"
+    subgraph "API Layer - Hono/Edge Runtime"
         AR[API Routes]
         CP[Content Processor]
         EE[Explanation Engine]
+        FM[Fallback Manager]
     end
     
     subgraph "External Services"
-        GM[Google Gemini AI]
-        FB[Fallback Models]
+        GM1[Gemini 2.0 Flash - Primary]
+        GM2[Gemini 2.0 Flash Lite - Fallback 1]
+        GM3[Gemini Flash Latest - Fallback 2]
+        GM4[Gemini Pro Latest - Fallback 3]
     end
     
     UI --> AR
     AR --> CP
     CP --> EE
-    EE --> GM
-    EE --> FB
-    AR --> RD
+    EE --> FM
+    FM --> GM1
+    FM --> GM2
+    FM --> GM3
+    FM --> GM4
+    AR --> SM
+    SM --> RD
     RD --> DG
     UI --> TM
 ```
@@ -44,10 +52,10 @@ graph TB
 
 The application follows a component-based architecture with clear separation of concerns:
 
-- **Presentation Layer**: React components handling user interface and interactions
+- **Presentation Layer**: React 19 components handling user interface and interactions
 - **Business Logic Layer**: Content processing, AI integration, and state management
-- **Data Layer**: API routes and external service integration
-- **Infrastructure Layer**: Next.js framework, build tools, and deployment configuration
+- **Data Layer**: Hono API routes with edge runtime and external service integration
+- **Infrastructure Layer**: Next.js 16 framework, Tailwind CSS v4, and deployment configuration
 
 ## Components and Interfaces
 
@@ -89,46 +97,48 @@ interface ExplanationResult {
 }
 ```
 
-#### MermaidDiagram Component
+#### D2Diagram Component
 ```typescript
-interface MermaidDiagramProps {
-  diagram: string;
-  theme: 'light' | 'dark';
+interface D2DiagramProps {
+  chart: string;
+  theme?: 'light' | 'dark';
   onError?: (error: Error) => void;
 }
 
-interface DiagramControls {
-  zoom: number;
-  pan: { x: number; y: number };
-  resetView: () => void;
-  zoomIn: () => void;
-  zoomOut: () => void;
+interface DiagramState {
+  isLoading: boolean;
+  error: string | null;
+  renderedSvg: string | null;
 }
 ```
 
 ### API Interfaces
 
-#### Content Processing API
+#### Content Processing API (Hono-based)
 ```typescript
 interface ProcessContentRequest {
   content: string;
-  explanationLevel: 'Beginner' | 'Intermediate' | 'Advanced';
-  language?: string;
+  level: 'Beginner' | 'Intermediate' | 'Advanced';
 }
 
 interface ProcessContentResponse {
-  result: ExplanationResult;
-  streamId?: string;
+  // Streaming response via ReadableStream
+  stream: ReadableStream<Uint8Array>;
+  headers: {
+    'Content-Type': 'text/plain; charset=utf-8';
+    'Transfer-Encoding': 'chunked';
+    'X-Model-Used': string;
+  };
 }
 ```
 
-#### AI Service Interface
+#### AI Service Interface with Fallback
 ```typescript
 interface AIServiceConfig {
-  primaryModel: string;
-  fallbackModels: string[];
+  models: string[]; // Prioritized list: gemini-2.0-flash, gemini-2.0-flash-lite, etc.
   maxRetries: number;
   timeout: number;
+  fallbackStrategy: 'sequential' | 'parallel';
 }
 
 interface GenerateExplanationParams {
@@ -136,33 +146,48 @@ interface GenerateExplanationParams {
   level: string;
   systemPrompt: string;
 }
+
+interface ModelFallbackResult {
+  success: boolean;
+  modelUsed: string;
+  stream?: ReadableStream;
+  error?: Error;
+}
 ```
 
 ## Data Models
 
 ### Content Models
 
-#### InputContent
+#### ExplanationResult
 ```typescript
-interface InputContent {
-  text: string;
-  type: 'code' | 'concept' | 'text';
-  detectedLanguage?: string;
+interface ExplanationResult {
+  mentalModel: string;
+  explanation: string;
+  example: string;
+  diagram: string; // D2 diagram code
+  keyTakeaways: string[];
   metadata: {
-    length: number;
-    complexity: 'low' | 'medium' | 'high';
-    timestamp: Date;
+    detectedLanguage?: string;
+    complexity: string;
+    processingTime: number;
+    modelUsed: string;
   };
 }
 ```
 
-#### ExplanationRequest
+#### StreamingContent
 ```typescript
-interface ExplanationRequest {
-  content: InputContent;
-  level: ExplanationLevel;
-  preferences: UserPreferences;
-  sessionId: string;
+interface StreamingContent {
+  sections: {
+    mentalModel: string;
+    explanation: string;
+    diagram: string;
+    example: string;
+    takeaways: string;
+  };
+  isComplete: boolean;
+  currentSection: string;
 }
 ```
 
@@ -208,61 +233,49 @@ interface ErrorResponse {
 
 *A property is a characteristic or behavior that should hold true across all valid executions of a system—essentially, a formal statement about what the system should do. Properties serve as the bridge between human-readable specifications and machine-verifiable correctness guarantees.*
 
-### Property 1: Input Processing Consistency
-*For any* valid text, code, or concept input, the Content_Processor should accept, validate, detect language (when applicable), and prepare it for explanation processing
-**Validates: Requirements 1.2, 1.3, 1.4**
+### Property 1: Input Validation Consistency
+*For any* input content (empty strings, whitespace-only, null values), the Content_Processor should prevent submission and maintain current application state
+**Validates: Requirements 1.2.1**
 
-### Property 2: Session State Persistence  
-*For any* user preference selection (explanation level, theme), the system should store and maintain that preference throughout the current session
-**Validates: Requirements 2.2, 7.3**
+### Property 2: Language Detection Accuracy  
+*For any* code snippet containing language-specific syntax patterns, the Language_Detector should correctly identify the programming language or classify as generic text
+**Validates: Requirements 1.3.1**
 
-### Property 3: Explanation Level Adaptation
-*For any* content and selected explanation level, the generated explanation should match the complexity appropriate to that level
-**Validates: Requirements 2.3**
+### Property 3: Session State Persistence
+*For any* user preference selection (explanation level, theme), the system should maintain that preference throughout all subsequent interactions in the session
+**Validates: Requirements 2.2.1**
 
-### Property 4: AI Service Integration
-*For any* content submission, the Explanation_Engine should process it using the configured AI models and handle fallback when the primary model fails
-**Validates: Requirements 3.1, 3.5, 10.1**
+### Property 4: Structured Content Generation
+*For any* explanation request, the Explanation_Engine should generate complete responses containing mental model, detailed explanation, example, valid D2 diagram, and key takeaways sections
+**Validates: Requirements 3.2.1, 3.3.1**
 
-### Property 5: Structured Output Generation
-*For any* explanation request, the system should generate a complete response containing mental model, detailed explanation, example, valid Mermaid diagram, and key takeaways
-**Validates: Requirements 3.2, 3.3, 3.4**
+### Property 5: AI Service Fallback Mechanism
+*For any* primary model failure (rate limiting, service unavailable, timeout), the Fallback_Manager should automatically attempt alternative models in the configured priority order
+**Validates: Requirements 3.5.1**
 
-### Property 6: UI Layout Consistency
-*For any* generated explanation, the Result_Display should present content in a 3-pane layout with sticky mental model header, organized tabs, and collapsible takeaways
-**Validates: Requirements 4.1, 4.2, 4.3, 4.5**
+### Property 6: Keyboard Shortcut Handling
+*For any* supported keyboard combination (Cmd/Ctrl+V, Cmd/Ctrl+Enter), the Input_Handler should execute the corresponding action regardless of current focus state
+**Validates: Requirements 5.1.1**
 
-### Property 7: Diagram Interactivity
-*For any* displayed Mermaid diagram, the Diagram_Generator should provide full interactivity including zoom controls, pan functionality, and responsive rendering
-**Validates: Requirements 4.4, 5.1, 5.2, 5.3, 5.5**
+### Property 7: Real-time Streaming Behavior
+*For any* explanation generation, the Streaming_Manager should deliver content incrementally as it becomes available rather than waiting for complete response
+**Validates: Requirements 6.1.1**
 
-### Property 8: Error Handling Gracefully
-*For any* error condition (diagram rendering failure, network error, invalid input, system error), the system should handle it gracefully with appropriate messages while maintaining stability
-**Validates: Requirements 5.4, 10.2, 10.3, 10.5**
+### Property 8: Theme Application Consistency
+*For any* theme toggle action, the Theme_Manager should apply changes immediately across all UI components while maintaining content readability and accessibility standards
+**Validates: Requirements 7.2.1**
 
-### Property 9: Streaming Behavior
-*For any* explanation generation, the system should stream content in real-time, display loading indicators, handle interruptions gracefully, and indicate completion
-**Validates: Requirements 6.1, 6.2, 6.4, 6.5**
+### Property 9: Responsive Layout Adaptation
+*For any* viewport size change, the Layout_Manager should adapt the interface appropriately while maintaining functionality and readability across desktop, tablet, and mobile breakpoints
+**Validates: Requirements 8.1.1**
 
-### Property 10: Theme Application Consistency
-*For any* theme toggle, the Theme_Manager should apply changes immediately across all UI components, ensure content readability, and provide smooth transitions
-**Validates: Requirements 7.2, 7.4, 7.5**
+### Property 10: Syntax Highlighting Integration
+*For any* code block in explanation content, the Syntax_Highlighter should apply appropriate language-specific styling that works correctly in both light and dark themes
+**Validates: Requirements 9.1.1**
 
-### Property 11: Responsive Design Adaptation
-*For any* device type (desktop, tablet, mobile), the application should provide responsive design with appropriate animations and maintained readability
-**Validates: Requirements 8.1, 8.3, 8.5**
-
-### Property 12: Animation Integration
-*For any* user interaction or content change, the system should provide Framer Motion animations that enhance experience without interfering with functionality
-**Validates: Requirements 8.2**
-
-### Property 13: Syntax Highlighting Consistency
-*For any* code snippet display, the system should apply appropriate syntax highlighting with proper formatting that works across multiple languages and both themes
-**Validates: Requirements 9.1, 9.2, 9.3, 9.4, 9.5**
-
-### Property 14: Privacy-Preserving Error Logging
-*For any* error occurrence, the system should log debugging information while maintaining user privacy and data protection
-**Validates: Requirements 10.4**
+### Property 11: Error Recovery and Graceful Degradation
+*For any* system error (AI service failure, network timeout, parsing error), the Error_Handler should provide clear user feedback while maintaining application stability and offering recovery options
+**Validates: Requirements 10.1.1, 10.2.1**
 
 ## Error Handling
 
@@ -342,5 +355,12 @@ The Learning Copilot requires comprehensive testing using both unit tests and pr
 - **Error Coverage**: All error conditions and recovery mechanisms  
 - **Performance Coverage**: Streaming, animations, and responsive behavior
 - **Integration Coverage**: AI service integration and fallback mechanisms
+
+**Testing Library**: Use `fast-check` for TypeScript/JavaScript property-based testing
+**Test Configuration**: Minimum 100 iterations per property test
+**Test Tagging**: Each property test must reference its design document property using the format:
+```typescript
+// Feature: learning-copilot, Property 1: Input Validation Consistency
+```
 
 The testing strategy ensures that the Learning Copilot maintains high reliability while providing a smooth user experience across all supported scenarios and devices.

@@ -66,11 +66,11 @@ export const SYSTEM_PROMPT = `
   [Create a D2 diagram code block. D2 is a declarative language for diagrams.]
 
   [CRITICAL: D2 SYNTAX RULES]
-  - **SYNTAX**: \`Node One -> Node Two: Connection Label\`
+  - **SYNTAX**: \`Node One -> Node Two: "Connection Label"\`
   - **CONTAINERS**: \`Parent { Child }\` for nesting.
-  - **LABELS**: Labels with spaces or symbols should be in quotes: \`A: "Process Step (1)"\`.
-  - **SIMPLE**: Avoid complex attributes. Focus on flow.
-  - **ID TYPE**: Use simple IDs (e.g., \`A\`, \`B\`, \`Login\`).
+  - **LABELS**: ALL labels MUST be in double quotes: \`A: "Process Step (1)"\`.
+  - **RESTRICTIONS**: Do NOT use Markdown, lists, or explanations inside the block. ONLY D2 code.
+  - **ID TYPE**: Use simple alphanumeric IDs (e.g., \`A\`, \`B\`, \`Login\`).
   - **MANDATORY**: Always wrap the code in a \`d2\` code block.
 
   \`\`\`d2

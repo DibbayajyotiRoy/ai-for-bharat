@@ -52,12 +52,13 @@ export const D2Diagram: React.FC<D2DiagramProps> = ({ chart }) => {
                 }
             } catch (err: any) {
                 console.error('D2 rendering failed:', err);
+                console.log('Failing D2 Code:', processedChart);
                 if (isMounted) {
                     setError(err.message || 'Syntax Error');
                     setSvg(`<div class="flex flex-col items-center justify-center gap-2 p-4 text-center">
                         <div class="text-red-400 text-sm font-medium">D2 Render Failed</div>
                         <div class="text-muted-foreground text-[10px] leading-tight max-w-[200px] font-mono break-all opacity-70">
-                            ${processedChart.split('\n').slice(0, 3).join('\n')}
+                            ${processedChart.split('\n').slice(0, 5).join('\n')}
                         </div>
                         <div class="text-muted-foreground text-xs mt-1">The D2 syntax was invalid or too complex.</div>
                     </div>`);

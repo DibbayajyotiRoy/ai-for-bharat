@@ -1,10 +1,170 @@
-# Requirements Document: Learning Copilot
+# Learning Copilot
+AI-Powered Concept Explainer Built on AWS
 
-## Overview
+## 1. Problem Statement
 
-The Learning Copilot is an AI-powered web application that transforms complex technical content, code snippets, and concepts into structured, easy-to-understand explanations. The system provides an intuitive interface for users to input content and receive comprehensive explanations tailored to their skill level, complete with visual D2 diagrams and interactive features. The application uses Google's Gemini AI models with a robust fallback system to ensure reliability and consistent availability.
+Students and developers struggle to understand:
+- Complex technical concepts
+- Dense documentation
+- Large code snippets
+- System architectures
 
-## User Stories and Acceptance Criteria
+Existing AI tools generate explanations, but they:
+- Do not adapt deeply to user skill level
+- Lack structured visual reinforcement
+- Fail silently when models rate-limit
+- Do not provide real-time streaming
+- Offer poor reliability under load
+
+There is no structured, reliable, visual-first AI learning assistant optimized for clarity, performance, and scale.
+
+## 2. Solution Overview
+
+Learning Copilot is a scalable AI-powered web application that:
+- Converts technical input into structured explanations
+- Adapts explanations to skill level (Beginner / Intermediate / Advanced)
+- Generates D2 system diagrams automatically
+- Streams explanations in real-time
+- Uses intelligent model fallback to guarantee reliability
+- Scales automatically using AWS serverless architecture
+
+This is not just an AI wrapper. It is an engineered learning system.
+
+## 3. System Architecture
+
+### Core Infrastructure
+
+**Amazon Bedrock**
+- Claude 3.5 Sonnet (Primary model)
+- Claude 3 Haiku (Low-latency fallback)
+- Titan Text (Cost-optimized fallback)
+- Streaming API for real-time output
+
+**Amazon Q Developer**
+- Automatic language detection
+- Code structure understanding
+- Context-aware analysis
+
+**AWS Lambda**
+- Serverless explanation pipeline
+- Edge-optimized execution
+- Auto-scaling up to 1000 concurrent users
+
+**Amazon CloudFront**
+- Global CDN
+- Static asset caching
+- Low-latency content delivery
+
+**AWS Secrets Manager**
+- Secure credential storage
+- Automatic key rotation
+
+**Amazon CloudWatch**
+- Performance monitoring
+- AI usage tracking
+- Cost analytics
+
+**AWS Amplify**
+- CI/CD deployment
+- Production + staging environments
+- Built-in SSL
+
+## 4. Intelligent Model Fallback System (Reliability Innovation)
+
+Most AI apps fail when:
+- Rate limits occur
+- Model quotas are exhausted
+- Latency spikes
+
+Our system implements prioritized fallback:
+1. Claude 3.5 Sonnet → high-quality default
+2. Claude 3 Haiku → low-latency fallback
+3. Titan Text → cost-controlled fallback
+
+With:
+- Exponential backoff
+- Real-time failure detection
+- CloudWatch performance monitoring
+- Automatic retry logic
+
+Result: High availability and cost control
+
+This is production-grade architecture, not demo-grade.
+
+## 5. Core Features
+
+### 1. Adaptive Explanation Engine
+
+User selects skill level:
+- **Beginner** → analogy-driven, simplified vocabulary
+- **Intermediate** → best practices + applied reasoning
+- **Advanced** → internals, trade-offs, performance analysis
+
+### 2. Structured Output Framework
+
+Each explanation contains:
+- Mental Model (sticky concept anchor)
+- Core Explanation
+- Practical Example
+- D2 Diagram
+- Key Takeaways
+
+No unstructured AI dump.
+
+### 3. Automated D2 Diagram Generation
+
+The system:
+- Generates syntactically valid D2
+- Validates before rendering
+- Provides fallback if diagram fails
+- Displays in dedicated pane
+
+This strengthens comprehension through dual encoding (text + visual).
+
+### 4. Real-Time Streaming
+
+- Content appears token-by-token
+- Users read while generation continues
+- Interruption-safe streaming
+- Partial content preserved on failure
+
+Improves perceived speed and engagement.
+
+### 5. High-Performance UI
+
+- Three-pane layout
+- Sticky mental model
+- Tabbed explanation/example
+- Collapsible takeaways
+- Keyboard shortcuts
+- 60fps animations using Framer Motion
+- Fully responsive
+
+Designed for clarity, not clutter.
+
+### 6. Security & Privacy
+
+- IAM least-privilege access
+- No user input stored in logs
+- Encrypted credentials via Secrets Manager
+- HTTPS via CloudFront
+- Input sanitization
+- Optional WAF integration
+
+User content remains private.
+
+### 7. Scalability & Performance
+
+- Lambda auto-scales to 1000 concurrent users
+- Sub-3s initial load via CloudFront caching
+- <10s explanation generation
+- Cold start optimized
+- Cost-aware model routing
+- CloudWatch-driven optimization loop
+
+Built for real-world load.
+
+## 6. User Stories and Acceptance Criteria
 
 ### Epic 1: Content Input and Processing
 
@@ -41,27 +201,16 @@ The Learning Copilot is an AI-powered web application that transforms complex te
 - 1.3.3 The system handles mixed content with multiple languages
 - 1.3.4 The system gracefully handles unrecognized languages
 
-#### User Story 1.4: Content Processing
-**As a** user  
-**I want** my input to be processed efficiently  
-**So that** I can receive explanations without unnecessary delays
-
-**Acceptance Criteria:**
-- 1.4.1 The system processes content within reasonable time limits
-- 1.4.2 The system handles various content formats and structures
-- 1.4.3 The system maintains content integrity during processing
-- 1.4.4 The system provides processing status feedback to users
-
-#### User Story 1.5: Clipboard Integration
+#### User Story 1.4: Clipboard Integration
 **As a** user  
 **I want** to easily paste content from my clipboard  
 **So that** I can quickly input content without manual typing
 
 **Acceptance Criteria:**
-- 1.5.1 The system provides a paste button for clipboard access
-- 1.5.2 The system handles clipboard permissions appropriately
-- 1.5.3 The system supports pasting various content types
-- 1.5.4 The system provides feedback when paste operations succeed or fail
+- 1.4.1 The system provides a paste button for clipboard access
+- 1.4.2 The system handles clipboard permissions appropriately
+- 1.4.3 The system supports pasting various content types
+- 1.4.4 The system provides feedback when paste operations succeed or fail
 
 ### Epic 2: Explanation Level Selection
 
@@ -106,10 +255,11 @@ The Learning Copilot is an AI-powered web application that transforms complex te
 **So that** I receive high-quality, accurate explanations
 
 **Acceptance Criteria:**
-- 3.1.1 The system integrates with Google Gemini AI models
-- 3.1.2 The system uses multiple model variants for reliability
-- 3.1.3 The system handles AI service authentication securely
-- 3.1.4 The system provides appropriate error handling for AI failures
+- 3.1.1 The system integrates with Amazon Bedrock foundation models (Claude 3.5 Sonnet, Claude 3 Haiku, Titan Text)
+- 3.1.2 The system uses multiple model variants for reliability and cost optimization
+- 3.1.3 The system handles AI service authentication securely via AWS Secrets Manager
+- 3.1.4 The system provides appropriate error handling for AI failures with automatic fallback
+- 3.1.5 The system leverages Amazon Q Developer for code analysis and language detection
 
 #### User Story 3.2: Structured Explanation Format
 **As a** user  
@@ -133,28 +283,18 @@ The Learning Copilot is an AI-powered web application that transforms complex te
 - 3.3.3 THE System SHALL create diagrams relevant to the explained content
 - 3.3.4 WHEN diagram generation fails, THE System SHALL handle failures gracefully with appropriate fallback content
 
-#### User Story 3.4: Content Completeness
-**As a** user  
-**I want** complete explanations with all required sections  
-**So that** I receive comprehensive understanding of the topic
-
-**Acceptance Criteria:**
-- 3.4.1 All explanations include mental model, explanation, example, diagram, and takeaways
-- 3.4.2 The system validates explanation completeness before display
-- 3.4.3 Missing sections are handled with appropriate fallback content
-- 3.4.4 The system ensures consistency across all explanation components
-
-#### User Story 3.5: Model Fallback System
+#### User Story 3.4: Model Fallback System
 **As a** user  
 **I want** the system to work reliably even when primary AI models fail  
 **So that** I can consistently receive explanations
 
 **Acceptance Criteria:**
-- 3.5.1 THE System SHALL automatically try fallback models when primary models fail
-- 3.5.2 WHEN rate limiting occurs, THE System SHALL handle quota issues gracefully with exponential backoff
-- 3.5.3 THE System SHALL provide user feedback about model availability and fallback usage
-- 3.5.4 THE System SHALL maintain explanation quality across different Gemini model variants
-- 3.5.5 THE System SHALL use prioritized model list: gemini-2.0-flash, gemini-2.0-flash-lite, gemini-flash-latest, gemini-pro-latest
+- 3.4.1 THE System SHALL automatically try fallback models when primary models fail
+- 3.4.2 WHEN rate limiting occurs, THE System SHALL handle quota issues gracefully with exponential backoff
+- 3.4.3 THE System SHALL provide user feedback about model availability and fallback usage
+- 3.4.4 THE System SHALL maintain explanation quality across different Bedrock model variants
+- 3.4.5 THE System SHALL use prioritized model list: Claude 3.5 Sonnet (primary), Claude 3 Haiku (fast fallback), Titan Text (cost-effective fallback)
+- 3.4.6 THE System SHALL monitor model performance via Amazon CloudWatch for optimization
 
 ### Epic 4: Interactive Result Display
 
@@ -180,38 +320,27 @@ The Learning Copilot is an AI-powered web application that transforms complex te
 - 4.2.3 The active tab is clearly highlighted
 - 4.2.4 Tab content is properly formatted and readable
 
-#### User Story 4.3: Sticky Mental Model
-**As a** user  
-**I want** the mental model to remain visible while scrolling  
-**So that** I can reference the core concept throughout my reading
-
-**Acceptance Criteria:**
-- 4.3.1 The mental model header remains fixed at the top of results
-- 4.3.2 The mental model is visually distinct and prominent
-- 4.3.3 The mental model includes appropriate iconography
-- 4.3.4 The mental model text is concise and memorable
-
-#### User Story 4.4: Interactive Diagram Display
+#### User Story 4.3: Interactive Diagram Display
 **As a** user  
 **I want** to view D2 diagrams in a dedicated display area  
 **So that** I can understand visual representations of concepts
 
 **Acceptance Criteria:**
-- 4.4.1 THE System SHALL display D2 diagrams in a dedicated pane
-- 4.4.2 THE System SHALL render diagrams properly across different themes
-- 4.4.3 WHEN diagrams fail to render, THE System SHALL display appropriate error messages
-- 4.4.4 THE System SHALL provide loading indicators while diagrams are being processed
+- 4.3.1 THE System SHALL display D2 diagrams in a dedicated pane
+- 4.3.2 THE System SHALL render diagrams properly across different themes
+- 4.3.3 WHEN diagrams fail to render, THE System SHALL display appropriate error messages
+- 4.3.4 THE System SHALL provide loading indicators while diagrams are being processed
 
-#### User Story 4.5: Collapsible Takeaways
+#### User Story 4.4: Collapsible Takeaways
 **As a** user  
 **I want** to expand or collapse key takeaways  
 **So that** I can control the amount of information displayed
 
 **Acceptance Criteria:**
-- 4.5.1 Key takeaways are initially collapsed to save space
-- 4.5.2 Users can expand takeaways with a clear toggle button
-- 4.5.3 The expansion/collapse animation is smooth
-- 4.5.4 Takeaways are formatted as scannable bullet points
+- 4.4.1 Key takeaways are initially collapsed to save space
+- 4.4.2 Users can expand takeaways with a clear toggle button
+- 4.4.3 The expansion/collapse animation is smooth
+- 4.4.4 Takeaways are formatted as scannable bullet points
 
 ### Epic 5: Enhanced User Experience
 
@@ -272,38 +401,16 @@ The Learning Copilot is an AI-powered web application that transforms complex te
 - 6.2.3 The system provides skeleton loading for expected content structure
 - 6.2.4 Loading indicators disappear when content is ready
 
-#### User Story 6.3: Performance Optimization
-**As a** user  
-**I want** fast response times and smooth interactions  
-**So that** I can efficiently learn without technical delays
-
-**Acceptance Criteria:**
-- 6.3.1 The system optimizes streaming performance
-- 6.3.2 UI interactions remain responsive during content generation
-- 6.3.3 The system manages memory usage efficiently
-- 6.3.4 Performance remains consistent across extended usage
-
-#### User Story 6.4: Stream Interruption Handling
+#### User Story 6.3: Stream Interruption Handling
 **As a** user  
 **I want** the system to handle connection issues gracefully  
 **So that** I don't lose progress when network problems occur
 
 **Acceptance Criteria:**
-- 6.4.1 The system detects and handles stream interruptions
-- 6.4.2 Users receive clear feedback about connection issues
-- 6.4.3 The system attempts to recover from temporary failures
-- 6.4.4 Partial content is preserved when streams are interrupted
-
-#### User Story 6.5: Completion Signaling
-**As a** user  
-**I want** clear indication when explanation generation is complete  
-**So that** I know when all content is available
-
-**Acceptance Criteria:**
-- 6.5.1 The system clearly indicates when streaming is complete
-- 6.5.2 All loading indicators are removed upon completion
-- 6.5.3 The final content state is visually distinct from loading states
-- 6.5.4 Users can interact with all features once generation is complete
+- 6.3.1 The system detects and handles stream interruptions
+- 6.3.2 Users receive clear feedback about connection issues
+- 6.3.3 The system attempts to recover from temporary failures
+- 6.3.4 Partial content is preserved when streams are interrupted
 
 ### Epic 7: Theme Management
 
@@ -318,49 +425,27 @@ The Learning Copilot is an AI-powered web application that transforms complex te
 - 7.1.3 The current theme is clearly indicated in the interface
 - 7.1.4 Theme selection is available from any page in the application
 
-#### User Story 7.2: Immediate Theme Application
-**As a** user  
-**I want** theme changes to apply immediately  
-**So that** I can see the effect of my selection right away
-
-**Acceptance Criteria:**
-- 7.2.1 Theme changes apply instantly across all UI components
-- 7.2.2 All content remains readable during theme transitions
-- 7.2.3 Theme changes include appropriate transition animations
-- 7.2.4 No content flashing or visual artifacts occur during theme changes
-
-#### User Story 7.3: Theme Persistence
+#### User Story 7.2: Theme Persistence
 **As a** user  
 **I want** my theme preference to be remembered  
 **So that** I don't need to reselect it each time I use the application
 
 **Acceptance Criteria:**
-- 7.3.1 The system remembers theme selection across browser sessions
-- 7.3.2 Theme preference is applied automatically on application load
-- 7.3.3 The system respects system-level theme preferences as default
-- 7.3.4 Theme persistence works consistently across different browsers
+- 7.2.1 The system remembers theme selection across browser sessions
+- 7.2.2 Theme preference is applied automatically on application load
+- 7.2.3 The system respects system-level theme preferences as default
+- 7.2.4 Theme persistence works consistently across different browsers
 
-#### User Story 7.4: Content Readability
+#### User Story 7.3: Content Readability
 **As a** user  
 **I want** all content to be readable in both themes  
 **So that** I can use either theme without accessibility issues
 
 **Acceptance Criteria:**
-- 7.4.1 Text contrast meets accessibility standards in both themes
-- 7.4.2 Code syntax highlighting works properly in both themes
-- 7.4.3 Diagrams and visual elements are visible in both themes
-- 7.4.4 Interactive elements maintain usability across themes
-
-#### User Story 7.5: Smooth Transitions
-**As a** user  
-**I want** smooth visual transitions when changing themes  
-**So that** the experience feels polished and professional
-
-**Acceptance Criteria:**
-- 7.5.1 Theme transitions include smooth color animations
-- 7.5.2 Transition duration is appropriate (not too fast or slow)
-- 7.5.3 All UI elements transition consistently
-- 7.5.4 Transitions don't interfere with content readability
+- 7.3.1 Text contrast meets accessibility standards in both themes
+- 7.3.2 Code syntax highlighting works properly in both themes
+- 7.3.3 Diagrams and visual elements are visible in both themes
+- 7.3.4 Interactive elements maintain usability across themes
 
 ### Epic 8: Responsive Design and Animations
 
@@ -386,38 +471,16 @@ The Learning Copilot is an AI-powered web application that transforms complex te
 - 8.2.3 Animation performance is optimized for all devices
 - 8.2.4 Users can still access content if animations fail
 
-#### User Story 8.3: Layout Flexibility
-**As a** user  
-**I want** the interface to adapt to my screen orientation and size  
-**So that** I can use the application comfortably in any configuration
-
-**Acceptance Criteria:**
-- 8.3.1 The layout works in both portrait and landscape orientations
-- 8.3.2 Content reflows appropriately when screen size changes
-- 8.3.3 Navigation and controls remain accessible at all sizes
-- 8.3.4 The three-pane layout adapts gracefully to smaller screens
-
-#### User Story 8.4: Performance Optimization
-**As a** user  
-**I want** animations and responsive features to perform well  
-**So that** the application remains fast and responsive
-
-**Acceptance Criteria:**
-- 8.4.1 Animations maintain 60fps performance on supported devices
-- 8.4.2 Responsive layout changes don't cause performance issues
-- 8.4.3 The system optimizes rendering for different device capabilities
-- 8.4.4 Performance remains consistent during extended usage
-
-#### User Story 8.5: Accessibility Compliance
+#### User Story 8.3: Accessibility Compliance
 **As a** user with accessibility needs  
 **I want** the responsive design to maintain accessibility standards  
 **So that** I can use the application effectively regardless of my abilities
 
 **Acceptance Criteria:**
-- 8.5.1 All interactive elements remain keyboard accessible
-- 8.5.2 Screen reader compatibility is maintained across device sizes
-- 8.5.3 Color contrast standards are met at all screen sizes
-- 8.5.4 Focus indicators work properly on all devices
+- 8.3.1 All interactive elements remain keyboard accessible
+- 8.3.2 Screen reader compatibility is maintained across device sizes
+- 8.3.3 Color contrast standards are met at all screen sizes
+- 8.3.4 Focus indicators work properly on all devices
 
 ### Epic 9: Code Syntax Highlighting
 
@@ -443,38 +506,16 @@ The Learning Copilot is an AI-powered web application that transforms complex te
 - 9.2.3 Syntax colors are consistent with theme aesthetics
 - 9.2.4 Theme changes update syntax highlighting immediately
 
-#### User Story 9.3: Automatic Language Detection
-**As a** user  
-**I want** the system to automatically detect programming languages  
-**So that** I receive appropriate syntax highlighting without manual specification
-
-**Acceptance Criteria:**
-- 9.3.1 The system accurately detects common programming languages
-- 9.3.2 Language detection works for code snippets of various sizes
-- 9.3.3 The system handles ambiguous cases gracefully
-- 9.3.4 Manual language specification overrides automatic detection
-
-#### User Story 9.4: Code Formatting
-**As a** user  
-**I want** code to be properly formatted and indented  
-**So that** it's easy to read and understand structure
-
-**Acceptance Criteria:**
-- 9.4.1 Code maintains proper indentation and formatting
-- 9.4.2 Line numbers are displayed when appropriate
-- 9.4.3 Code blocks have clear visual boundaries
-- 9.4.4 Long lines are handled appropriately (wrapping or scrolling)
-
-#### User Story 9.5: Copy Functionality
+#### User Story 9.3: Copy Functionality
 **As a** user  
 **I want** to easily copy code examples  
 **So that** I can use them in my own projects
 
 **Acceptance Criteria:**
-- 9.5.1 Code blocks include a copy button
-- 9.5.2 Copy functionality works reliably across browsers
-- 9.5.3 Copied code maintains proper formatting
-- 9.5.4 Users receive feedback when copy operations succeed
+- 9.3.1 Code blocks include a copy button
+- 9.3.2 Copy functionality works reliably across browsers
+- 9.3.3 Copied code maintains proper formatting
+- 9.3.4 Users receive feedback when copy operations succeed
 
 ### Epic 10: Error Handling and Reliability
 
@@ -511,93 +552,156 @@ The Learning Copilot is an AI-powered web application that transforms complex te
 - 10.3.3 The system provides alternative approaches when primary methods fail
 - 10.3.4 Users are informed about reduced functionality when appropriate
 
-#### User Story 10.4: Privacy-Preserving Error Logging
-**As a** user  
-**I want** my data to remain private even when errors occur  
-**So that** I can trust the application with sensitive content
-
-**Acceptance Criteria:**
-- 10.4.1 Error logs don't contain user input content
-- 10.4.2 Personal information is excluded from error reporting
-- 10.4.3 Error tracking focuses on technical issues, not user data
-- 10.4.4 Users are informed about what information is collected
-
-#### User Story 10.5: System Stability
+#### User Story 10.4: System Stability
 **As a** user  
 **I want** the application to remain stable during errors  
 **So that** I don't lose my work or need to restart
 
 **Acceptance Criteria:**
-- 10.5.1 Individual component failures don't crash the entire application
-- 10.5.2 Error boundaries prevent cascading failures
-- 10.5.3 The system recovers automatically from transient issues
-- 10.5.4 User state and progress are preserved during error recovery
+- 10.4.1 Individual component failures don't crash the entire application
+- 10.4.2 Error boundaries prevent cascading failures
+- 10.4.3 The system recovers automatically from transient issues
+- 10.4.4 User state and progress are preserved during error recovery
 
-## Technical Requirements
+## 7. Competitive Advantage
 
-### Performance Requirements
-- Initial page load time under 3 seconds
-- Explanation generation response time under 10 seconds
-- Smooth 60fps animations on supported devices
-- Efficient memory usage during extended sessions
+Most AI explanation tools:
+- Use single model
+- No fallback strategy
+- No streaming
+- No visual diagrams
+- No structured framework
+- No performance monitoring
+- No cost optimization
+
+Learning Copilot includes:
+- Multi-model resilience
+- Adaptive explanation depth
+- Visual-first learning
+- Production-grade AWS architecture
+- Observability built-in
+
+This is not just an AI interface. It is a fault-tolerant learning infrastructure.
+
+## 8. Measurable Success Metrics
+
+### Performance Targets
+- Initial page load: <3 seconds (CloudFront caching)
+- Explanation generation: <10 seconds (Bedrock streaming)
+- Animation performance: 60fps on supported devices
+- Lambda cold start: <1 second
+- CloudFront cache hit ratio: >80%
+
+### Reliability Targets
+- System uptime: >99.5%
+- Fallback success rate: >95%
+- Error recovery rate: >90%
+- Stream completion rate: >98%
+
+### User Experience Targets
+- Time to first content: <2 seconds
+- Feature adoption (themes): >60%
+- Feature adoption (skill levels): >80%
+- User satisfaction: >4.2/5
+
+### Cost Efficiency Targets
+- Average cost per explanation: <$0.05
+- Model fallback usage: <20% of requests
+- CloudFront cache savings: >70% bandwidth reduction
+
+## 9. Technical Requirements
+
+### AWS Infrastructure Requirements
+- **Amazon Bedrock**: Foundation model access with appropriate IAM permissions
+  - Claude 3.5 Sonnet model access for primary explanations
+  - Claude 3 Haiku model access for fast fallback responses
+  - Titan Text model access for cost-effective fallback
+  - Streaming API support for real-time content delivery
+- **Amazon Q Developer**: Code analysis API integration
+  - Language detection capabilities
+  - Code context understanding
+- **AWS Lambda**: Serverless compute with edge runtime support
+  - Node.js 20.x runtime environment
+  - Edge-optimized functions for low latency
+  - Environment variable management for configuration
+- **Amazon CloudFront**: CDN configuration for global content delivery
+  - Origin configuration for Lambda functions
+  - Cache policies for static assets
+  - SSL/TLS certificate management
+- **AWS Secrets Manager**: Secure storage for API keys and credentials
+  - Bedrock API credentials
+  - Q Developer API keys
+  - Automatic credential rotation policies
+- **Amazon CloudWatch**: Monitoring, logging, and alerting setup
+  - Lambda function logs and metrics
+  - Bedrock API usage tracking
+  - Custom metrics for user experience monitoring
+  - Cost optimization dashboards
+- **AWS Amplify**: Frontend hosting with CI/CD pipeline
+  - Git-based deployment workflow
+  - Environment-specific configurations
+  - Build optimization for Next.js
+- **AWS IAM**: Role-based access control for service integration
+  - Lambda execution roles with least privilege
+  - Bedrock access policies
+  - Cross-service authentication
 
 ### Security Requirements
-- Secure API key management for AI services
+- AWS Secrets Manager for secure API key management
 - Input sanitization to prevent injection attacks
-- Privacy-preserving error logging
+- Privacy-preserving error logging via CloudWatch
 - Secure clipboard access handling
+- IAM policies following principle of least privilege
+- Encryption at rest and in transit for all data
+- Optional AWS WAF integration for DDoS protection
 
 ### Compatibility Requirements
 - Support for modern browsers (Chrome, Firefox, Safari, Edge)
 - Responsive design for desktop, tablet, and mobile devices
 - Accessibility compliance (WCAG 2.1 AA standards)
 - Cross-platform functionality
+- Progressive enhancement for older browsers
 
 ### Scalability Requirements
-- Efficient handling of concurrent users
+- AWS Lambda auto-scaling for concurrent users (up to 1000 concurrent executions)
+- Bedrock quota management and rate limiting strategies
+- CloudFront edge caching for static assets
 - Optimized API usage to manage costs
-- Scalable architecture for future feature additions
-- Performance monitoring and optimization capabilities
+- CloudWatch metrics for performance monitoring
+- Cost optimization through intelligent model selection
 
-## Success Metrics
+## 10. Impact
 
-### User Experience Metrics
-- Average time to explanation completion
-- User satisfaction with explanation quality
-- Feature adoption rates (themes, skill levels, diagram interactions)
-- Error recovery success rates
+### Target Users
+- Engineering students
+- Competitive exam aspirants
+- Self-taught developers
+- Hackathon participants
+- Bootcamp learners
 
-### Technical Metrics
-- System uptime and availability
-- API response times and success rates
-- Error rates and resolution times
-- Performance benchmarks across devices
+### Outcome
+- Faster concept mastery
+- Reduced cognitive overload
+- Better retention via structured + visual learning
+- Reliable AI access even under quota constraints
 
-### Business Metrics
-- User engagement and retention
-- Feature usage patterns
-- Cost efficiency of AI service usage
-- User feedback and improvement suggestions
+## 11. Why This Should Win
 
-## Constraints and Assumptions
+- Deep AWS integration (not superficial usage)
+- Strong reliability engineering (fallback + monitoring)
+- Clear scalability plan
+- Thoughtful UX design
+- Real educational impact
+- Production-ready architecture
+- Cost-aware AI strategy
 
-### Technical Constraints
-- Dependency on Google Gemini AI service availability
-- Browser limitations for clipboard and theme detection
-- Network connectivity requirements for AI processing
-- Device performance limitations for complex animations
+This project demonstrates:
+- System design maturity
+- Cloud architecture expertise
+- AI integration depth
+- Practical engineering thinking
 
-### Business Constraints
-- API usage costs and rate limits
-- Development timeline and resource allocation
-- Maintenance and support requirements
-- Compliance with data protection regulations
-
-### Assumptions
-- Users have modern browsers with JavaScript enabled
-- Network connectivity is generally reliable
-- Users are comfortable with AI-generated content
-- Content input will primarily be in English
+It is built like a product, not a prototype.
 
 ## Glossary
 
@@ -607,11 +711,13 @@ The Learning Copilot is an AI-powered web application that transforms complex te
 
 **Streaming**: Real-time delivery of content as it's generated, allowing users to read while processing continues
 
-**Mermaid Diagram**: A text-based diagramming format that generates visual flowcharts and diagrams
-
 **D2 Diagram**: A declarative diagramming language used for creating structured visual representations of systems and processes
 
-**Fallback Model**: Alternative AI models used when the primary model is unavailable or fails
+**Fallback Model**: Alternative AI models used when the primary model is unavailable or fails (e.g., Claude 3 Haiku when Claude 3.5 Sonnet is unavailable)
+
+**Amazon Bedrock**: AWS managed service providing access to foundation models from various AI companies through a unified API
+
+**Amazon Q Developer**: AWS AI-powered coding assistant that provides code analysis, language detection, and development insights
 
 **Three-Pane Layout**: The result display structure with mental model header, tabbed content, and diagram visualization
 

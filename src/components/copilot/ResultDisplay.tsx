@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { motion, AnimatePresence } from 'framer-motion';
 import { D2Diagram } from './D2Diagram';
-import { Check, ChevronDown, ChevronUp, Copy, BookOpen } from 'lucide-react';
+import { Check, ChevronDown, ChevronUp, Copy, BookOpen, ExternalLink, Shield, AlertCircle } from 'lucide-react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
@@ -13,9 +13,16 @@ interface ResultDisplayProps {
     theme: 'light' | 'dark';
 }
 
+interface Source {
+    title: string;
+    url: string;
+    summary: string;
+    credibility: 'high' | 'medium' | 'low';
+}
+
 export function ResultDisplay({ content, theme }: ResultDisplayProps) {
     // Parse content into sections
-    const sections = parseSections(content);
+    const { sections, sources } = parseSections(content);
     const [activeTab, setActiveTab] = useState<'explanation' | 'example'>('explanation');
     const [isTakeawaysExpanded, setIsTakeawaysExpanded] = useState(false);
 
@@ -30,7 +37,7 @@ export function ResultDisplay({ content, theme }: ResultDisplayProps) {
                 <div className="bg-background p-2 rounded-lg shadow-sm border border-border/50">
                     <span className="text-xl">🧠</span>
                 </div>
-                <div>
+                <div className="flex-1">
                     <h3 className="text-xs font-bold text-primary/60 uppercase tracking-widest mb-1 font-sans">Mental Model</h3>
                     <p className="text-foreground font-serif text-2xl leading-snug">
                         {sections.mentalModel || "Thinking..."}
@@ -190,7 +197,7 @@ export function ResultDisplay({ content, theme }: ResultDisplayProps) {
 }
 
 // Robust parsing logic for streaming content
-function parseSections(markdown: string) {
+function parseSections(markdown: string): { sections: any; sources: Source[] } {
     const sections = {
         mentalModel: '',
         explanation: '',
@@ -198,33 +205,112 @@ function parseSections(markdown: string) {
         example: '',
         takeaways: ''
     };
+    
+    const sources: Source[] = [];
 
-    if (!markdown) return sections;
+    if (!markdown) return { sections, sources };
 
-    // Simple splitting by headers - this matches the prompt structure
-    const parts = markdown.split(/### \d+\. /);
+    console.log('[Parser] Raw markdown:', markdown.substring(0, 500));
 
-    // parts[0] is usually empty or intro text
-    // parts[1] = Mental Model
-    // parts[2] = Explanation
-    // parts[3] = Visual Diagram
-    // parts[4] = Concrete Example
-    // parts[5] = Key Takeaways
+    // Extract sources first (Perplexity-style)
+    const sourcesMatch = markdown.match(/###\s*📚\s*Sources\s*([\s\S]*?)$/i);
+    if (sourcesMatch) {
+        const sourcesText = sourcesMatch[1];
+        // Parse source links: - [Title](url) (credibility)
+        const sourceRegex = /-\s*\[([^\]]+)\]\(([^)]+)\)\s*\((\w+)\s+credibility\)/gi;
+        let match;
+        while ((match = sourceRegex.exec(sourcesText)) !== null) {
+            const afterMatch = sourcesText.substring(match.index + match[0].length);
+            const summaryMatch = afterMatch.match(/^\s*(.+?)(?=\n-|\n###|$)/);
+            sources.push({
+                title: match[1].trim(),
+                url: match[2].trim(),
+                credibility: match[3].toLowerCase() as 'high' | 'medium' | 'low',
+                summary: summaryMatch ? summaryMatch[1].trim() : ''
+            });
+        }
+        
+        // Remove sources section from main content
+        markdown = markdown.replace(/---\s*###\s*📚\s*Sources[\s\S]*$/, '');
+    }
 
-    if (parts.length > 1) sections.mentalModel = parts[1]?.replace('The Mental Model', '').trim();
-    if (parts.length > 2) sections.explanation = parts[2]?.replace('The Explanation', '').trim();
+    // Normal mode: parse structured sections
+    let parts = markdown.split(/###\s*\d+\.\s*/);
+    
+    // If that didn't work, try without numbers
+    if (parts.length <= 1) {
+        parts = markdown.split(/###\s+/);
+    }
 
-    // Extract mermaid code block for diagram
-    if (parts.length > 3) {
-        const rawDiagram = parts[3]?.replace('Visual Diagram', '').trim();
-        const match = rawDiagram.match(/```d2([\s\S]*?)```/);
-        if (match) {
-            sections.diagram = match[1].trim();
+    console.log('[Parser] Split into', parts.length, 'parts');
+
+    // If still no sections, treat entire content as explanation
+    if (parts.length <= 1) {
+        sections.explanation = markdown;
+        sections.mentalModel = "Understanding the concept";
+        return { sections, sources };
+    }
+
+    // Parse sections by looking for keywords
+    for (let i = 0; i < parts.length; i++) {
+        const part = parts[i];
+        const lowerPart = part.toLowerCase();
+
+        if (lowerPart.includes('mental model')) {
+            // Extract everything after "mental model" until next section or double newline
+            let content = part.replace(/mental model/i, '').trim();
+            
+            // Remove leading newlines
+            content = content.replace(/^\n+/, '');
+            
+            // Get first paragraph (until double newline or next section)
+            const paragraphMatch = content.match(/^([^\n]+(?:\n(?!\n)[^\n]+)*)/);
+            if (paragraphMatch) {
+                sections.mentalModel = paragraphMatch[1].trim();
+            } else {
+                // Fallback: get first line
+                const firstLine = content.split('\n')[0];
+                sections.mentalModel = firstLine || "Understanding the concept";
+            }
+            
+            console.log('[Parser] Mental model:', sections.mentalModel);
+        } else if (lowerPart.includes('explanation')) {
+            sections.explanation = part.replace(/the explanation/i, '').replace(/explanation/i, '').trim();
+        } else if (lowerPart.includes('visual diagram') || lowerPart.includes('diagram')) {
+            const rawDiagram = part.replace(/visual diagram/i, '').trim();
+            // More flexible D2 extraction
+            const match = rawDiagram.match(/```d2\s*([\s\S]*?)```/) || 
+                         rawDiagram.match(/```\s*([\s\S]*?)```/);
+            if (match) {
+                sections.diagram = match[1].trim();
+            }
+        } else if (lowerPart.includes('example')) {
+            sections.example = part.replace(/concrete example/i, '').replace(/example/i, '').trim();
+        } else if (lowerPart.includes('takeaway') || lowerPart.includes('key points')) {
+            sections.takeaways = part.replace(/key takeaways/i, '').replace(/key points/i, '').trim();
+        } else if (lowerPart.includes('summary') && !sections.explanation) {
+            // Use summary as explanation if no explanation found
+            sections.explanation = part.replace(/summary/i, '').trim();
         }
     }
 
-    if (parts.length > 4) sections.example = parts[4]?.replace('Concrete Example', '').trim();
-    if (parts.length > 5) sections.takeaways = parts[5]?.replace('Key Takeaways', '').trim();
+    // Fallback: if no mental model found, extract first meaningful sentence
+    if (!sections.mentalModel && sections.explanation) {
+        const firstSentence = sections.explanation.match(/^[^.!?]+[.!?]/);
+        if (firstSentence && firstSentence[0].length < 200) {
+            sections.mentalModel = firstSentence[0].trim();
+        } else {
+            sections.mentalModel = "Understanding the concept";
+        }
+    }
 
-    return sections;
+    console.log('[Parser] Final sections:', {
+        mentalModel: sections.mentalModel.substring(0, 100),
+        hasExplanation: !!sections.explanation,
+        hasDiagram: !!sections.diagram,
+        hasExample: !!sections.example,
+        hasTakeaways: !!sections.takeaways
+    });
+
+    return { sections, sources };
 }

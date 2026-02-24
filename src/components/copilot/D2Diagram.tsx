@@ -1,8 +1,7 @@
-"use client";
-
 import React, { useEffect, useRef, useState } from 'react';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import { ZoomIn, ZoomOut, Maximize, RotateCcw, BookOpen } from 'lucide-react';
+import { cleanD2Syntax, generateFallbackDiagram } from '@/lib/d2-validator';
 
 interface D2DiagramProps {
     chart: string;
@@ -14,35 +13,36 @@ export const D2Diagram: React.FC<D2DiagramProps> = ({ chart }) => {
     const [isParsed, setIsParsed] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const sanitizeD2 = (code: string) => {
-        if (!code) return '';
-        // Remove markdown wrappers if present
-        return code.replace(/```d2/g, '').replace(/```/g, '').trim();
-    };
-
     useEffect(() => {
         let isMounted = true;
         const renderDiagram = async () => {
             setIsParsed(false);
             setError(null);
 
-            const processedChart = sanitizeD2(chart);
-            if (!processedChart) return;
+            if (!chart || !chart.trim()) {
+                return;
+            }
 
             try {
+                // Clean and validate D2 syntax
+                const cleanedChart = cleanD2Syntax(chart);
+                
+                console.log('[D2] Original:', chart);
+                console.log('[D2] Cleaned:', cleanedChart);
+
                 // Dynamically import D2 to ensure it only loads on the client
                 const { D2 } = await import('@terrastruct/d2');
                 const d2Instance = new D2();
 
-                const response = await d2Instance.compile(processedChart, {
+                const response = await d2Instance.compile(cleanedChart, {
                     options: {
-                        layout: 'dagre',
-                        themeID: 200, // Dark theme (Deep Blue)
+                        layout: 'elk',  // ELK layout for better horizontal flow
+                        themeID: 0, // Neutral theme for better visibility
                     }
                 });
 
                 const svgString = await d2Instance.render(response.diagram, {
-                    themeID: 200,
+                    themeID: 0,
                     noXMLTag: true
                 });
 
@@ -51,17 +51,40 @@ export const D2Diagram: React.FC<D2DiagramProps> = ({ chart }) => {
                     setIsParsed(true);
                 }
             } catch (err: any) {
-                console.error('D2 rendering failed:', err);
-                console.log('Failing D2 Code:', processedChart);
-                if (isMounted) {
-                    setError(err.message || 'Syntax Error');
-                    setSvg(`<div class="flex flex-col items-center justify-center gap-2 p-4 text-center">
-                        <div class="text-red-400 text-sm font-medium">D2 Render Failed</div>
-                        <div class="text-muted-foreground text-[10px] leading-tight max-w-[200px] font-mono break-all opacity-70">
-                            ${processedChart.split('\n').slice(0, 5).join('\n')}
-                        </div>
-                        <div class="text-muted-foreground text-xs mt-1">The D2 syntax was invalid or too complex.</div>
-                    </div>`);
+                console.error('[D2] Rendering failed:', err);
+                console.log('[D2] Failed code:', chart);
+                
+                // Try fallback diagram
+                try {
+                    const fallbackChart = generateFallbackDiagram();
+                    const { D2 } = await import('@terrastruct/d2');
+                    const d2Instance = new D2();
+
+                    const response = await d2Instance.compile(fallbackChart, {
+                        options: {
+                            layout: 'elk',
+                            themeID: 0,
+                        }
+                    });
+
+                    const svgString = await d2Instance.render(response.diagram, {
+                        themeID: 0,
+                        noXMLTag: true
+                    });
+
+                    if (isMounted) {
+                        setSvg(svgString);
+                        setIsParsed(true);
+                        console.log('[D2] Using fallback diagram');
+                    }
+                } catch (fallbackErr) {
+                    if (isMounted) {
+                        setError(err.message || 'Syntax Error');
+                        setSvg(`<div class="flex flex-col items-center justify-center gap-2 p-4 text-center">
+                            <div class="text-red-400 text-sm font-medium">Diagram Unavailable</div>
+                            <div class="text-muted-foreground text-xs mt-1">Unable to render diagram</div>
+                        </div>`);
+                    }
                 }
             }
         };
@@ -74,11 +97,11 @@ export const D2Diagram: React.FC<D2DiagramProps> = ({ chart }) => {
     const responsiveSvg = svg.replace(/width=".*?"/, 'width="100%"').replace(/height=".*?"/, 'height="100%"');
 
     return (
-        <div className="w-full h-full relative group overflow-hidden bg-muted/30 rounded-lg border border-border/50">
+        <div className="w-full h-full relative group overflow-hidden bg-white dark:bg-gray-900 rounded-lg border border-border/50">
             {isParsed ? (
                 <TransformWrapper
-                    initialScale={1}
-                    minScale={0.5}
+                    initialScale={0.8}
+                    minScale={0.3}
                     maxScale={4}
                     centerOnInit
                     limitToBounds={false}

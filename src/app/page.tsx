@@ -10,6 +10,7 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState('');
   const [level, setLevel] = useState<'Beginner' | 'Intermediate' | 'Advanced'>('Beginner');
+  const [mode, setMode] = useState<'normal' | 'agent'>('normal');
   const [detectedLang, setDetectedLang] = useState<string | null>(null);
 
   // Simple language detection simulation
@@ -44,7 +45,12 @@ export default function Home() {
       const response = await fetch('/api/explain', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: input, level })
+        body: JSON.stringify({ 
+          content: input, 
+          level,
+          mode,
+          userId: 'demo-user' // In production, use real user ID
+        })
       });
 
       if (!response.body) throw new Error('No response body');
@@ -184,19 +190,38 @@ export default function Home() {
             </div>
 
             <div className="flex items-center justify-between px-2 pb-2 pt-3 border-t border-border/20 mt-1">
-              <div className="flex space-x-1 bg-muted/40 p-1 rounded-lg border border-border/20">
-                {(['Beginner', 'Intermediate', 'Advanced'] as const).map((lvl) => (
-                  <button
-                    key={lvl}
-                    onClick={() => setLevel(lvl)}
-                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${level === lvl
-                      ? 'bg-background text-foreground shadow-sm'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-                      }`}
-                  >
-                    {lvl}
-                  </button>
-                ))}
+              <div className="flex gap-2">
+                {/* Skill Level */}
+                <div className="flex space-x-1 bg-muted/40 p-1 rounded-lg border border-border/20">
+                  {(['Beginner', 'Intermediate', 'Advanced'] as const).map((lvl) => (
+                    <button
+                      key={lvl}
+                      onClick={() => setLevel(lvl)}
+                      className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${level === lvl
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                        }`}
+                    >
+                      {lvl}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Mode Toggle */}
+                <div className="flex space-x-1 bg-muted/40 p-1 rounded-lg border border-border/20">
+                  {(['normal', 'agent'] as const).map((m) => (
+                    <button
+                      key={m}
+                      onClick={() => setMode(m)}
+                      className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${mode === m
+                        ? 'bg-background text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                        }`}
+                    >
+                      {m === 'normal' ? '📝 Normal' : '🔍 Research'}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div className="flex items-center gap-4">

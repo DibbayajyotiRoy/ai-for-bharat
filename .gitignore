@@ -39,3 +39,16 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# AWS CLI installation files
+/aws/
+awscliv2.zip
+
+# Lock files (keep only one)
+bun.lock
+package-lock.json
+
+# Progress/status markdown files (optional - remove if you want to commit them)
+*_COMPLETE.md
+*_FIXES.md
+*_SUMMARY.md

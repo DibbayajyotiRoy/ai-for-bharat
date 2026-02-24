@@ -6,9 +6,16 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "setup:aws": "bash scripts/setup-aws.sh",
+    "setup:dashboard": "bash scripts/create-cloudwatch-dashboard.sh",
+    "fix:permissions": "bash scripts/fix-iam-permissions.sh"
   },
   "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.996.0",
+    "@aws-sdk/client-cloudwatch-logs": "^3.996.0",
+    "@aws-sdk/client-dynamodb": "^3.996.0",
+    "@aws-sdk/util-dynamodb": "^3.996.0",
     "@google/generative-ai": "^0.24.1",
     "@terrastruct/d2": "^0.1.33",
     "@types/react-syntax-highlighter": "^15.5.13",

@@ -1,16 +1,19 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { motion, AnimatePresence } from 'framer-motion';
-import { D2Diagram } from './D2Diagram';
-import { Check, ChevronDown, ChevronUp, Copy, BookOpen, ExternalLink, Shield, AlertCircle } from 'lucide-react';
+import { VisualPanel } from './VisualPanel';
+import { Check, ChevronDown, ChevronUp, Copy, BookOpen, ExternalLink, Shield, AlertCircle, Image as ImageIcon } from 'lucide-react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 interface ResultDisplayProps {
     content: string;
     theme: 'light' | 'dark';
+    // When provided and viewMode === 'translated', these override the parsed sections.
+    translatedSections?: { mentalModel: string; takeaways: string };
+    viewMode?: 'source' | 'translated';
 }
 
 interface Source {
@@ -20,11 +23,26 @@ interface Source {
     credibility: 'high' | 'medium' | 'low';
 }
 
-export function ResultDisplay({ content, theme }: ResultDisplayProps) {
-    // Parse content into sections
+const CREDIBILITY_CONFIG = {
+    high: { icon: Shield, color: 'text-green-500', label: 'Verified' },
+    medium: { icon: AlertCircle, color: 'text-yellow-500', label: 'Community' },
+    low: { icon: AlertCircle, color: 'text-orange-400', label: 'Unverified' },
+};
+
+export function ResultDisplay({ content, theme, translatedSections, viewMode = 'source' }: ResultDisplayProps) {
     const { sections, sources } = parseSections(content);
     const [activeTab, setActiveTab] = useState<'explanation' | 'example'>('explanation');
     const [isTakeawaysExpanded, setIsTakeawaysExpanded] = useState(false);
+    const [areSourcesExpanded, setAreSourcesExpanded] = useState(false);
+
+    // Choose source or translated content for overrideable sections
+    const showTranslated = viewMode === 'translated' && !!translatedSections;
+    const displayedMentalModel = showTranslated
+        ? (translatedSections?.mentalModel || sections.mentalModel)
+        : sections.mentalModel;
+    const displayedTakeaways = showTranslated
+        ? (translatedSections?.takeaways || sections.takeaways)
+        : sections.takeaways;
 
     return (
         <motion.div
@@ -37,10 +55,17 @@ export function ResultDisplay({ content, theme }: ResultDisplayProps) {
                 <div className="bg-background p-2 rounded-lg shadow-sm border border-border/50">
                     <span className="text-xl">🧠</span>
                 </div>
-                <div className="flex-1">
-                    <h3 className="text-xs font-bold text-primary/60 uppercase tracking-widest mb-1 font-sans">Mental Model</h3>
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                        <h3 className="text-xs font-bold text-primary/60 uppercase tracking-widest font-sans">Mental Model</h3>
+                        {showTranslated && (
+                            <span className="text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary rounded font-medium">
+                                Translated
+                            </span>
+                        )}
+                    </div>
                     <p className="text-foreground font-serif text-2xl leading-snug">
-                        {sections.mentalModel || "Thinking..."}
+                        {displayedMentalModel || "Thinking..."}
                     </p>
                 </div>
             </div>
@@ -135,22 +160,12 @@ export function ResultDisplay({ content, theme }: ResultDisplayProps) {
                     </div>
                 </div>
 
-                {/* 3. RIGHT PANE: Visual Diagram (Fixed/Fit) */}
-                <div className="flex-1 glass-card rounded-xl p-4 flex flex-col relative overflow-hidden h-[400px] md:h-auto">
-                    <div className="absolute top-4 left-4 z-10">
-                        <span className="bg-background/80 backdrop-blur text-foreground/60 text-[10px] font-bold px-2 py-0.5 rounded shadow-sm border border-border/50 uppercase tracking-widest">System Flowchart</span>
-                    </div>
-                    <div className="flex-1 flex items-center justify-center bg-muted/20 rounded-lg border border-border/10 overflow-hidden">
-                        {sections.diagram ? (
-                            <D2Diagram chart={sections.diagram} />
-                        ) : (
-                            <div className="flex flex-col items-center text-muted-foreground/50 animate-pulse">
-                                <BookOpen className="w-8 h-8 mb-2 opacity-30" />
-                                <span className="text-[10px] uppercase tracking-[0.2em] font-medium">Synthesizing Visual Flow...</span>
-                            </div>
-                        )}
-                    </div>
-                </div>
+                {/* 3. RIGHT PANE: Visual Context (Diagram or Images) */}
+                <VisualPanel
+                    visualType={sections.visualType}
+                    diagram={sections.diagram}
+                    imageKeywords={sections.imageKeywords}
+                />
 
             </div>
 
@@ -165,6 +180,11 @@ export function ResultDisplay({ content, theme }: ResultDisplayProps) {
                             <Check className="w-4 h-4 text-primary" />
                         </div>
                         <span className="font-semibold text-foreground">Key Takeaways</span>
+                        {showTranslated && (
+                            <span className="text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary rounded font-medium">
+                                Translated
+                            </span>
+                        )}
                         <span className="text-xs text-muted-foreground font-mono bg-muted px-2 py-0.5 rounded-full border border-border/50">
                             {isTakeawaysExpanded ? 'Hide' : 'Show'}
                         </span>
@@ -183,7 +203,7 @@ export function ResultDisplay({ content, theme }: ResultDisplayProps) {
                             <div className="p-4 pt-2">
                                 <div className="prose prose-sm md:prose-base prose-slate dark:prose-invert max-w-none prose-li:text-foreground/80 prose-li:marker:text-primary">
                                     <ReactMarkdown>
-                                        {sections.takeaways}
+                                        {displayedTakeaways}
                                     </ReactMarkdown>
                                 </div>
                             </div>
@@ -191,6 +211,71 @@ export function ResultDisplay({ content, theme }: ResultDisplayProps) {
                     )}
                 </AnimatePresence>
             </div>
+
+            {/* 5. SOURCES (Research mode only — collapsible) */}
+            {sources.length > 0 && (
+                <div className="w-full bg-card border border-border rounded-xl overflow-hidden shadow-sm">
+                    <button
+                        onClick={() => setAreSourcesExpanded(!areSourcesExpanded)}
+                        className="w-full flex items-center justify-between p-4 hover:bg-muted/50 transition-colors"
+                    >
+                        <div className="flex items-center gap-3">
+                            <div className="bg-blue-500/10 p-1.5 rounded-full">
+                                <BookOpen className="w-4 h-4 text-blue-500" />
+                            </div>
+                            <span className="font-semibold text-foreground">Sources</span>
+                            <span className="text-xs text-muted-foreground font-mono bg-muted px-2 py-0.5 rounded-full border border-border/50">
+                                {sources.length}
+                            </span>
+                        </div>
+                        {areSourcesExpanded ? <ChevronUp className="text-muted-foreground" /> : <ChevronDown className="text-muted-foreground" />}
+                    </button>
+
+                    <AnimatePresence>
+                        {areSourcesExpanded && (
+                            <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                className="border-t border-border/50"
+                            >
+                                <div className="p-4 space-y-3">
+                                    {sources.map((source, i) => {
+                                        const cfg = CREDIBILITY_CONFIG[source.credibility];
+                                        const Icon = cfg.icon;
+                                        return (
+                                            <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-muted/30 border border-border/30 hover:bg-muted/50 transition-colors">
+                                                <Icon className={`w-4 h-4 mt-0.5 flex-shrink-0 ${cfg.color}`} />
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <a
+                                                            href={source.url}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            className="font-medium text-sm text-foreground hover:text-primary transition-colors flex items-center gap-1"
+                                                        >
+                                                            {source.title}
+                                                            <ExternalLink className="w-3 h-3 opacity-50" />
+                                                        </a>
+                                                        <span className={`text-[10px] font-semibold uppercase tracking-wider ${cfg.color}`}>
+                                                            {cfg.label}
+                                                        </span>
+                                                    </div>
+                                                    {source.summary && (
+                                                        <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed line-clamp-2">
+                                                            {source.summary}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
+            )}
 
         </motion.div>
     );
@@ -203,9 +288,11 @@ function parseSections(markdown: string): { sections: any; sources: Source[] } {
         explanation: '',
         diagram: '',
         example: '',
-        takeaways: ''
+        takeaways: '',
+        visualType: 'diagram' as 'diagram' | 'image',
+        imageKeywords: [] as string[]
     };
-    
+
     const sources: Source[] = [];
 
     if (!markdown) return { sections, sources };
@@ -216,7 +303,6 @@ function parseSections(markdown: string): { sections: any; sources: Source[] } {
     const sourcesMatch = markdown.match(/###\s*📚\s*Sources\s*([\s\S]*?)$/i);
     if (sourcesMatch) {
         const sourcesText = sourcesMatch[1];
-        // Parse source links: - [Title](url) (credibility)
         const sourceRegex = /-\s*\[([^\]]+)\]\(([^)]+)\)\s*\((\w+)\s+credibility\)/gi;
         let match;
         while ((match = sourceRegex.exec(sourcesText)) !== null) {
@@ -229,58 +315,59 @@ function parseSections(markdown: string): { sections: any; sources: Source[] } {
                 summary: summaryMatch ? summaryMatch[1].trim() : ''
             });
         }
-        
+
         // Remove sources section from main content
         markdown = markdown.replace(/---\s*###\s*📚\s*Sources[\s\S]*$/, '');
     }
 
-    // Normal mode: parse structured sections
+    // Parse structured sections
     let parts = markdown.split(/###\s*\d+\.\s*/);
-    
-    // If that didn't work, try without numbers
+
     if (parts.length <= 1) {
         parts = markdown.split(/###\s+/);
     }
 
     console.log('[Parser] Split into', parts.length, 'parts');
 
-    // If still no sections, treat entire content as explanation
     if (parts.length <= 1) {
         sections.explanation = markdown;
         sections.mentalModel = "Understanding the concept";
         return { sections, sources };
     }
 
-    // Parse sections by looking for keywords
     for (let i = 0; i < parts.length; i++) {
         const part = parts[i];
         const lowerPart = part.toLowerCase();
 
         if (lowerPart.includes('mental model')) {
-            // Extract everything after "mental model" until next section or double newline
-            let content = part.replace(/mental model/i, '').trim();
-            
-            // Remove leading newlines
-            content = content.replace(/^\n+/, '');
-            
-            // Get first paragraph (until double newline or next section)
+            let content = part.replace(/mental model/i, '').trim().replace(/^\n+/, '');
             const paragraphMatch = content.match(/^([^\n]+(?:\n(?!\n)[^\n]+)*)/);
             if (paragraphMatch) {
                 sections.mentalModel = paragraphMatch[1].trim();
             } else {
-                // Fallback: get first line
-                const firstLine = content.split('\n')[0];
-                sections.mentalModel = firstLine || "Understanding the concept";
+                sections.mentalModel = content.split('\n')[0] || "Understanding the concept";
             }
-            
             console.log('[Parser] Mental model:', sections.mentalModel);
         } else if (lowerPart.includes('explanation')) {
             sections.explanation = part.replace(/the explanation/i, '').replace(/explanation/i, '').trim();
-        } else if (lowerPart.includes('visual diagram') || lowerPart.includes('diagram')) {
-            const rawDiagram = part.replace(/visual diagram/i, '').trim();
-            // More flexible D2 extraction
-            const match = rawDiagram.match(/```d2\s*([\s\S]*?)```/) || 
-                         rawDiagram.match(/```\s*([\s\S]*?)```/);
+        } else if (lowerPart.includes('visual context') || lowerPart.includes('visual diagram') || lowerPart.includes('diagram')) {
+            const rawVisual = part.replace(/visual context/i, '').replace(/visual diagram/i, '').trim();
+
+            // Extract visual type marker
+            const typeMatch = rawVisual.match(/\[VISUAL_TYPE:\s*(diagram|image)\]/i);
+            if (typeMatch) {
+                sections.visualType = typeMatch[1].toLowerCase() as 'diagram' | 'image';
+            }
+
+            // Extract image keywords marker
+            const keywordsMatch = rawVisual.match(/\[IMAGE_KEYWORDS:\s*([^\]]+)\]/i);
+            if (keywordsMatch) {
+                sections.imageKeywords = keywordsMatch[1].split(',').map(k => k.trim());
+            }
+
+            // Extract diagram code block
+            const match = rawVisual.match(/```d2\s*([\s\S]*?)```/) ||
+                rawVisual.match(/```\s*([\s\S]*?)```/);
             if (match) {
                 sections.diagram = match[1].trim();
             }
@@ -289,12 +376,10 @@ function parseSections(markdown: string): { sections: any; sources: Source[] } {
         } else if (lowerPart.includes('takeaway') || lowerPart.includes('key points')) {
             sections.takeaways = part.replace(/key takeaways/i, '').replace(/key points/i, '').trim();
         } else if (lowerPart.includes('summary') && !sections.explanation) {
-            // Use summary as explanation if no explanation found
             sections.explanation = part.replace(/summary/i, '').trim();
         }
     }
 
-    // Fallback: if no mental model found, extract first meaningful sentence
     if (!sections.mentalModel && sections.explanation) {
         const firstSentence = sections.explanation.match(/^[^.!?]+[.!?]/);
         if (firstSentence && firstSentence[0].length < 200) {
@@ -309,7 +394,8 @@ function parseSections(markdown: string): { sections: any; sources: Source[] } {
         hasExplanation: !!sections.explanation,
         hasDiagram: !!sections.diagram,
         hasExample: !!sections.example,
-        hasTakeaways: !!sections.takeaways
+        hasTakeaways: !!sections.takeaways,
+        sourcesCount: sources.length,
     });
 
     return { sections, sources };

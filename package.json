@@ -9,12 +9,16 @@
     "lint": "eslint",
     "setup:aws": "bash scripts/setup-aws.sh",
     "setup:dashboard": "bash scripts/create-cloudwatch-dashboard.sh",
-    "fix:permissions": "bash scripts/fix-iam-permissions.sh"
+    "fix:permissions": "bash scripts/fix-iam-permissions.sh",
+    "test:api": "tsx --env-file=.env scripts/test-agent-real-search.ts",
+    "test:languages": "tsx --env-file=.env scripts/test-languages.ts",
+    "test:agent": "tsx --env-file=.env scripts/test-agent-real-search.ts"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.996.0",
     "@aws-sdk/client-cloudwatch-logs": "^3.996.0",
     "@aws-sdk/client-dynamodb": "^3.996.0",
+    "@aws-sdk/client-translate": "^3.998.0",
     "@aws-sdk/util-dynamodb": "^3.996.0",
     "@google/generative-ai": "^0.24.1",
     "@terrastruct/d2": "^0.1.33",
@@ -31,7 +35,8 @@
     "react-markdown": "^10.1.0",
     "react-syntax-highlighter": "^16.1.0",
     "react-zoom-pan-pinch": "^3.7.0",
-    "tailwind-merge": "^3.4.0"
+    "tailwind-merge": "^3.4.0",
+    "tsx": "^4.21.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

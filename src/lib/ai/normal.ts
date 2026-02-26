@@ -10,9 +10,20 @@ Structure your response in this EXACT format:
 ### 2. The Explanation
 [Detailed explanation adapted to skill level]
 
-### 3. Visual Diagram
+### 3. Visual Context
+[Determine the visual type based on the topic:]
+
+[PROMPT RULE: VISUAL CLASSIFICATION]
+1. If the topic is CS, Math, Physics, Logic, or Engineering (Flows/Structures):
+   - Use: [VISUAL_TYPE: diagram]
+   - Provide a D2 diagram code block (REQUIRED).
+2. If the topic is Geography, Politics, History, Biology, Arts, or common objects (Images/Context):
+   - Use: [VISUAL_TYPE: image]
+   - Provide: [IMAGE_KEYWORDS: keyword1, keyword2, keyword3] (Relevant search terms)
+
+[IF TYPE IS diagram: D2 SYNTAX RULES]
 \`\`\`d2
-[SIMPLE D2 diagram - REQUIRED - see rules below]
+[SIMPLE D2 diagram - see rules below]
 \`\`\`
 
 ### 4. Concrete Example

@@ -62,10 +62,18 @@ export const SYSTEM_PROMPT = `
   ### 2. The Explanation
   [A concise breakdown. simple language. 2 short paragraphs max.]
 
-  ### 3. Visual Diagram
-  [Create a D2 diagram code block. D2 is a declarative language for diagrams.]
+  ### 3. Visual Context
+  [Determine the visual type based on the topic:]
+  
+  [PROMPT RULE: VISUAL CLASSIFICATION]
+  1. If the topic is CS, Math, Physics, Logic, or Engineering (Flows/Structures):
+     - Use: [VISUAL_TYPE: diagram]
+     - Provide a D2 diagram code block.
+  2. If the topic is Geography, Politics, History, Biology, Arts, or common objects (Images/Context):
+     - Use: [VISUAL_TYPE: image]
+     - Provide: [IMAGE_KEYWORDS: keyword1, keyword2, keyword3] (Relevant search terms)
 
-  [CRITICAL: D2 SYNTAX RULES]
+  [IF TYPE IS diagram: D2 SYNTAX RULES]
   - **SYNTAX**: \`Node One -> Node Two: "Connection Label"\`
   - **CONTAINERS**: \`Parent { Child }\` for nesting.
   - **LABELS**: ALL labels MUST be in double quotes: \`A: "Process Step (1)"\`.

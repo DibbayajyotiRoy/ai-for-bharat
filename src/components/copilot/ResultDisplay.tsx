@@ -4,6 +4,8 @@ import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { motion, AnimatePresence } from 'framer-motion';
 import { VisualPanel } from './VisualPanel';
+import { AnimationPlayer } from './AnimationPlayer';
+import type { AnimationData } from '@/lib/ai/animation';
 import { Check, ChevronDown, ChevronUp, Copy, BookOpen, ExternalLink, Shield, AlertCircle, Image as ImageIcon } from 'lucide-react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
@@ -14,6 +16,7 @@ interface ResultDisplayProps {
     // When provided and viewMode === 'translated', these override the parsed sections.
     translatedSections?: { mentalModel: string; takeaways: string };
     viewMode?: 'source' | 'translated';
+    animationData?: AnimationData;
 }
 
 interface Source {
@@ -29,7 +32,7 @@ const CREDIBILITY_CONFIG = {
     low: { icon: AlertCircle, color: 'text-orange-400', label: 'Unverified' },
 };
 
-export function ResultDisplay({ content, theme, translatedSections, viewMode = 'source' }: ResultDisplayProps) {
+export function ResultDisplay({ content, theme, translatedSections, viewMode = 'source', animationData }: ResultDisplayProps) {
     const { sections, sources } = parseSections(content);
     const [activeTab, setActiveTab] = useState<'explanation' | 'example'>('explanation');
     const [isTakeawaysExpanded, setIsTakeawaysExpanded] = useState(false);
@@ -48,48 +51,48 @@ export function ResultDisplay({ content, theme, translatedSections, viewMode = '
         <motion.div
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="w-full h-full flex flex-col gap-4 mt-6 max-h-[80vh]"
+            className="w-full h-full flex flex-col gap-3 sm:gap-4 mt-4 sm:mt-6 max-h-[85vh] sm:max-h-[80vh]"
         >
             {/* 1. MENTAL MODEL (Sticky Top) */}
-            <div className="w-full bg-primary/5 border border-primary/10 p-5 rounded-xl flex items-center gap-4 shadow-sm backdrop-blur-md">
-                <div className="bg-background p-2 rounded-lg shadow-sm border border-border/50">
-                    <span className="text-xl">🧠</span>
+            <div className="w-full bg-primary/5 border border-primary/10 p-3 sm:p-5 rounded-xl flex items-center gap-3 sm:gap-4 shadow-sm backdrop-blur-md">
+                <div className="bg-background p-1.5 sm:p-2 rounded-lg shadow-sm border border-border/50">
+                    <span className="text-lg sm:text-xl">🧠</span>
                 </div>
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                        <h3 className="text-xs font-bold text-primary/60 uppercase tracking-widest font-sans">Mental Model</h3>
+                        <h3 className="text-[10px] sm:text-xs font-bold text-primary/60 uppercase tracking-widest font-sans">Mental Model</h3>
                         {showTranslated && (
-                            <span className="text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary rounded font-medium">
+                            <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary rounded font-medium">
                                 Translated
                             </span>
                         )}
                     </div>
-                    <p className="text-foreground font-serif text-2xl leading-snug">
+                    <p className="text-foreground font-serif text-lg sm:text-2xl leading-snug">
                         {displayedMentalModel || "Thinking..."}
                     </p>
                 </div>
             </div>
 
-            <div className="flex-1 flex flex-col md:flex-row gap-4 min-h-0 overflow-hidden">
+            <div className="flex-1 flex flex-col lg:flex-row gap-3 sm:gap-4 min-h-0 overflow-hidden">
 
                 {/* 2. LEFT PANE: Explanation & Content (Scrollable) */}
-                <div className="flex-1 flex flex-col glass-card rounded-xl overflow-hidden">
+                <div className="flex-1 flex flex-col glass-card rounded-xl overflow-hidden min-h-[300px] lg:min-h-0">
                     <div className="flex border-b border-border/50">
                         <button
                             onClick={() => setActiveTab('explanation')}
-                            className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === 'explanation' ? 'bg-muted/50 text-foreground border-b-2 border-primary' : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'}`}
+                            className={`flex-1 py-2 sm:py-3 text-xs sm:text-sm font-medium transition-colors ${activeTab === 'explanation' ? 'bg-muted/50 text-foreground border-b-2 border-primary' : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'}`}
                         >
                             Explanation
                         </button>
                         <button
                             onClick={() => setActiveTab('example')}
-                            className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === 'example' ? 'bg-muted/50 text-foreground border-b-2 border-primary' : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'}`}
+                            className={`flex-1 py-2 sm:py-3 text-xs sm:text-sm font-medium transition-colors ${activeTab === 'example' ? 'bg-muted/50 text-foreground border-b-2 border-primary' : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'}`}
                         >
                             Example
                         </button>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
+                    <div className="flex-1 overflow-y-auto p-4 sm:p-6 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
                         <AnimatePresence mode="wait">
                             {activeTab === 'explanation' ? (
                                 <motion.div
@@ -160,12 +163,14 @@ export function ResultDisplay({ content, theme, translatedSections, viewMode = '
                     </div>
                 </div>
 
-                {/* 3. RIGHT PANE: Visual Context (Diagram or Images) */}
-                <VisualPanel
-                    visualType={sections.visualType}
-                    diagram={sections.diagram}
-                    imageKeywords={sections.imageKeywords}
-                />
+                {/* 3. RIGHT PANE: Visual Context (Animation or Images) */}
+                {animationData ? (
+                    <div className="flex-1 min-w-0 min-h-[300px] lg:min-h-0">
+                        <AnimationPlayer data={animationData} />
+                    </div>
+                ) : (
+                    <VisualPanel imageKeywords={sections.imageKeywords} />
+                )}
 
             </div>
 

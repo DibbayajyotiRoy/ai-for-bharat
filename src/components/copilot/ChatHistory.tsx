@@ -35,9 +35,10 @@ export function ChatHistory({ isOpen, onClose, userId, onSelectChat }: ChatHisto
       const res = await fetch(`/api/history?userId=${userId}`);
       if (!res.ok) throw new Error('Failed to fetch history');
       const data = await res.json();
-      setHistory(data.history || []);
+      setHistory(Array.isArray(data.history) ? data.history : []);
     } catch (error) {
       console.error('[ChatHistory] Error:', error);
+      setHistory([]);
     } finally {
       setIsLoading(false);
     }
@@ -104,7 +105,7 @@ export function ChatHistory({ isOpen, onClose, userId, onSelectChat }: ChatHisto
                     <div key={i} className="h-20 bg-muted/30 rounded-lg skeleton-shimmer" />
                   ))}
                 </div>
-              ) : history.length === 0 ? (
+              ) : !Array.isArray(history) || history.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-center p-6">
                   <Clock className="w-12 h-12 text-muted-foreground/30 mb-3" />
                   <p className="text-sm text-muted-foreground">No chat history yet</p>
@@ -148,7 +149,7 @@ export function ChatHistory({ isOpen, onClose, userId, onSelectChat }: ChatHisto
             {/* Footer */}
             <div className="p-3 border-t border-border">
               <p className="text-xs text-muted-foreground text-center">
-                {history.length} conversation{history.length !== 1 ? 's' : ''}
+                {Array.isArray(history) ? history.length : 0} conversation{history.length !== 1 ? 's' : ''}
               </p>
             </div>
           </motion.div>

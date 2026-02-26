@@ -9,14 +9,23 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'userId required' }, { status: 400 });
     }
 
-    const history = await fetchRecentInteractions(userId, 20); // Get last 20 conversations
+    const interactions = await fetchRecentInteractions(userId, 20); // Get last 20 conversations
+    
+    // Transform to match ChatHistory component expectations
+    const history = interactions.map(item => ({
+      timestamp: item.timestamp,
+      query: item.content,
+      response: item.response,
+      level: item.level,
+      mode: item.mode,
+    }));
     
     return NextResponse.json({ history });
   } catch (error: any) {
     console.error('[History API] Error:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch history', details: error.message },
-      { status: 500 }
+      { history: [], error: 'Failed to fetch history', details: error.message },
+      { status: 200 } // Return 200 with empty array instead of 500
     );
   }
 }

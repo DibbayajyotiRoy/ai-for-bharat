@@ -1,4 +1,5 @@
-import { invokeModelWithFallback } from "./models";
+import { invokeModelWithFallback, streamModelWithFallback } from "./models";
+import { retrieveFromKnowledgeBase } from "./knowledge-base";
 
 export interface AgentResponse {
   answer: string;
@@ -19,8 +20,14 @@ export interface AgentStep {
   timestamp: number;
 }
 
-// OPTIMIZED: Single-shot synthesis without multiple API calls
-const FAST_SYNTHESIZER_PROMPT = `You are a technical educator. Create a comprehensive explanation with visual diagram.
+const FAST_SYNTHESIZER_PROMPT = `You are a technical educator creating explanations with INLINE CITATIONS.
+
+CITATION RULES:
+- Reference sources using [1], [2], [3] etc. inline in your text
+- Place citations immediately after the claim they support
+- Each source number corresponds to its position in the provided sources list
+- Use multiple citations when a claim is supported by multiple sources: [1][3]
+- Every factual claim should have at least one citation
 
 REQUIRED FORMAT - YOU MUST INCLUDE ALL SECTIONS:
 
@@ -157,8 +164,57 @@ Use inline citations [1], [2], etc. referencing the source numbers above.`;
   }
 }
 
-// Fetch real-time sources via Tavily Search API, with curated fallback.
+export async function* executeAgentPipelineStreaming(
+  query: string,
+  level: "Beginner" | "Intermediate" | "Advanced"
+): AsyncGenerator<string, void, unknown> {
+  console.log("[Agent] Starting streaming research pipeline");
+
+  // 1. Fetch sources (fast, non-streaming)
+  const sources = await fetchRealSources(query);
+
+  // 2. Build source block for appending after synthesis
+  const sourceBlock = `\n\n---\n\n### 📚 Sources\n\n${sources
+    .map((s) => `- [${s.title}](${s.url}) (${s.credibility} credibility)\n  ${s.summary}`)
+    .join("\n\n")}`;
+
+  // 3. Stream the synthesis with inline citation instructions
+  const synthesisPrompt = `Query: ${query}
+Skill Level: ${level}
+
+Use these credible sources for your explanation:
+${sources.map((s, i) => `[${i + 1}] ${s.title} - ${s.url}\n   ${s.summary}`).join("\n\n")}
+
+Create a comprehensive explanation with ALL required sections including a D2 diagram.
+Use inline citations [1], [2], etc. referencing the source numbers above.`;
+
+  for await (const chunk of streamModelWithFallback(
+    synthesisPrompt,
+    FAST_SYNTHESIZER_PROMPT,
+    1024
+  )) {
+    yield chunk;
+  }
+
+  // Append sources at the end
+  yield sourceBlock;
+}
+
+// Fetch sources: KB → Tavily → Curated fallback chain
 async function fetchRealSources(query: string): Promise<Source[]> {
+  // 1. Try Bedrock Knowledge Base first (AWS-native RAG)
+  const kbSources = await retrieveFromKnowledgeBase(query, 4);
+  if (kbSources.length > 0) {
+    console.log(`[Agent] Using ${kbSources.length} Knowledge Base sources`);
+    return kbSources.map((s) => ({
+      title: s.title,
+      url: s.url,
+      summary: s.content.substring(0, 220),
+      credibility: s.credibility,
+    }));
+  }
+
+  // 2. Fall back to Tavily web search
   const tavilyKey = process.env.TAVILY_API_KEY;
 
   if (tavilyKey) {

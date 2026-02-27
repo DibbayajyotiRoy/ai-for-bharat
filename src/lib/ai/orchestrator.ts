@@ -1,6 +1,5 @@
 import { streamNormalExplanation } from "./normal";
 import { generateStructuredExplanation } from "./structured";
-import { executeAgentPipeline } from "./agent";
 import { fetchRecentInteractions, saveInteraction, summarizeHistory } from "../db/dynamo";
 import { logInteraction, createLogEntry, estimateTokens } from "../logger";
 
@@ -43,50 +42,36 @@ export async function* handleChat(
     const enrichedContent = contextSummary ? `${content}${contextSummary}` : content;
 
     if (mode === "agent") {
-      // Agent mode: research pipeline
+      // Agent mode: streaming research pipeline
       try {
-        const agentResult = await executeAgentPipeline(enrichedContent, level);
-        
-        // Extract diagram from agent response if present
-        let diagram = "";
-        const diagramMatch = agentResult.answer.match(/```d2\s*([\s\S]*?)```/);
-        if (diagramMatch) {
-          diagram = diagramMatch[1].trim();
+        const { executeAgentPipelineStreaming } = await import("./agent");
+        for await (const chunk of executeAgentPipelineStreaming(enrichedContent, level)) {
+          fullResponse += chunk;
+          yield chunk;
         }
-        
-        // Format response with sources
-        const response = `${agentResult.answer}\n\n---\n\n### 📚 Sources\n\n${agentResult.sources
-          .map((s) => `- [${s.title}](${s.url}) (${s.credibility} credibility)\n  ${s.summary}`)
-          .join("\n\n")}`;
-
-        fullResponse = response;
-        modelUsed = "Agent Pipeline";
-        yield response;
-
-        // Save interaction
-        try {
-          await saveInteraction({
-            userId,
-            timestamp: Date.now(),
-            content,
-            level,
-            mode,
-            response: fullResponse,
-            modelUsed,
-          });
-        } catch (error: any) {
-          console.warn("[Orchestrator] Failed to save interaction:", error.message);
-        }
-
+        modelUsed = "Agent Pipeline (Streaming)";
       } catch (error: any) {
         console.error("[Orchestrator] Agent mode failed, falling back to normal");
         fallbackTriggered = true;
-        
-        // Fallback to normal mode
         for await (const chunk of streamNormalExplanation(enrichedContent, level)) {
           fullResponse += chunk;
           yield chunk;
         }
+      }
+
+      // Save interaction after streaming completes
+      try {
+        await saveInteraction({
+          userId,
+          timestamp: Date.now(),
+          content,
+          level,
+          mode,
+          response: fullResponse,
+          modelUsed,
+        });
+      } catch (error: any) {
+        console.warn("[Orchestrator] Failed to save:", error.message);
       }
 
     } else if (mode === "structured") {

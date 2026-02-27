@@ -15,11 +15,14 @@
     "test:agent": "tsx --env-file=.env scripts/test-agent-real-search.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-bedrock-agent-runtime": "^3.1000.0",
     "@aws-sdk/client-bedrock-runtime": "^3.996.0",
     "@aws-sdk/client-cloudwatch-logs": "^3.996.0",
     "@aws-sdk/client-dynamodb": "^3.996.0",
+    "@aws-sdk/client-polly": "^3.1000.0",
     "@aws-sdk/client-translate": "^3.998.0",
     "@aws-sdk/util-dynamodb": "^3.996.0",
+    "@codesandbox/sandpack-react": "^2.20.0",
     "@google/generative-ai": "^0.24.1",
     "@terrastruct/d2": "^0.1.33",
     "@types/react-syntax-highlighter": "^15.5.13",

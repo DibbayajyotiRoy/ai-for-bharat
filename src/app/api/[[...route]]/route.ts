@@ -96,6 +96,26 @@ app.post('/quiz', async (c) => {
     }
 })
 
+// ── Image explain endpoint (multimodal) ──────────────────────────────────────
+app.post('/explain-image', async (c) => {
+    try {
+        const body = await c.req.json();
+        const { imageBase64, mimeType, query, level = 'Beginner' } = body;
+
+        if (!imageBase64 || !mimeType) {
+            return c.json({ error: 'imageBase64 and mimeType are required' }, 400);
+        }
+
+        const { explainImage } = await import('@/lib/ai/multimodal');
+        const explanation = await explainImage({ imageBase64, mimeType, query, level });
+
+        return c.json({ explanation });
+    } catch (error: any) {
+        console.error('[API] Image explain error:', error);
+        return c.json({ error: error.message }, 500);
+    }
+})
+
 // ── Image search endpoint ──────────────────────────────────────────────────────
 app.post('/images', async (c) => {
     try {

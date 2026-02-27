@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, ArrowRight, Loader2, X, Clipboard, Brain, Globe, History } from 'lucide-react';
+import { Sparkles, ArrowRight, Loader2, X, Clipboard, Brain, Globe, History, ImagePlus } from 'lucide-react';
 import { ResultDisplay } from '@/components/copilot/ResultDisplay';
 import { QuizDisplay } from '@/components/copilot/QuizDisplay';
 import { ChatHistory } from '@/components/copilot/ChatHistory';
@@ -46,6 +46,9 @@ export default function Home() {
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
   const [questionsAsked, setQuestionsAsked] = useState(0);
   const [showProfilePrompt, setShowProfilePrompt] = useState(false);
+
+  // Image upload state
+  const [uploadedImage, setUploadedImage] = useState<{ base64: string; mimeType: string; preview: string } | null>(null);
 
   // Animation state
   const [animationData, setAnimationData] = useState<AnimationData | null>(null);
@@ -157,6 +160,25 @@ export default function Home() {
     setShowProfilePrompt(false);
   };
 
+  // ── Image Upload ─────────────────────────────────────────────────────────
+  const handleImageUpload = (file: File) => {
+    if (!file.type.startsWith('image/')) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Image must be under 5MB');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const base64 = (reader.result as string).split(',')[1];
+      setUploadedImage({
+        base64,
+        mimeType: file.type,
+        preview: reader.result as string,
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+
   // ── Translation ───────────────────────────────────────────────────────────
   const handleTranslate = useCallback(async (content: string, lang: SupportedLanguage) => {
     if (lang === 'en' || !content) return;
@@ -217,7 +239,7 @@ export default function Home() {
 
   // ── Explain ───────────────────────────────────────────────────────────────
   const handleExplain = async () => {
-    if (!input.trim()) return;
+    if (!input.trim() && !uploadedImage) return;
     setIsLoading(true);
     setResult('');
     // Reset derivative state for each new query
@@ -228,35 +250,61 @@ export default function Home() {
     setAnimationData(null);
 
     try {
-      const response = await fetch('/api/explain', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: input, level, mode, userId: currentUser?.id || 'anonymous' }),
-      });
+      // Image mode: use multimodal endpoint
+      if (uploadedImage) {
+        const response = await fetch('/api/explain-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            imageBase64: uploadedImage.base64,
+            mimeType: uploadedImage.mimeType,
+            query: input || undefined,
+            level,
+          }),
+        });
 
-      if (!response.body) throw new Error('No response body');
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let fullResult = '';
-      let done = false;
-
-      while (!done) {
-        const { value, done: doneReading } = await reader.read();
-        done = doneReading;
-        const chunk = decoder.decode(value);
-        fullResult += chunk;
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        const fullResult = data.explanation;
         setResult(fullResult);
-      }
 
-      // If a non-English language is already selected, translate after streaming ends
-      if (language !== 'en' && fullResult) {
-        handleTranslate(fullResult, language);
-      }
+        if (language !== 'en' && fullResult) {
+          handleTranslate(fullResult, language);
+        }
 
-      // Check if we should generate animation
-      if (shouldUseAnimation(input)) {
-        generateAnimationForQuery(input);
+        setUploadedImage(null);
+      } else {
+        // Text mode: stream explanation
+        const response = await fetch('/api/explain', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: input, level, mode, userId: currentUser?.id || 'anonymous' }),
+        });
+
+        if (!response.body) throw new Error('No response body');
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let fullResult = '';
+        let done = false;
+
+        while (!done) {
+          const { value, done: doneReading } = await reader.read();
+          done = doneReading;
+          const chunk = decoder.decode(value);
+          fullResult += chunk;
+          setResult(fullResult);
+        }
+
+        // If a non-English language is already selected, translate after streaming ends
+        if (language !== 'en' && fullResult) {
+          handleTranslate(fullResult, language);
+        }
+
+        // Check if we should generate animation
+        if (shouldUseAnimation(input)) {
+          generateAnimationForQuery(input);
+        }
       }
 
     } catch (error) {
@@ -390,10 +438,16 @@ export default function Home() {
             <div className="relative">
               <textarea
                 className="w-full h-32 sm:h-40 bg-card/50 text-foreground placeholder-muted-foreground/60 p-3 sm:p-5 resize-none focus:outline-none text-base sm:text-lg leading-relaxed font-sans glass-input rounded-lg selection:bg-primary/20"
-                placeholder="Paste 'Race Condition' or code..."
+                placeholder={uploadedImage ? "Add a question about this image (optional)..." : "Paste 'Race Condition' or code, or drop a screenshot..."}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleExplain(); }}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const file = e.dataTransfer.files[0];
+                  if (file?.type.startsWith('image/')) handleImageUpload(file);
+                }}
               />
 
               {/* Quick Actions */}
@@ -406,7 +460,27 @@ export default function Home() {
                 <button onClick={handlePaste} className="p-1.5 text-muted-foreground hover:text-primary hover:bg-muted/50 rounded-md transition-colors" title="Paste from Clipboard">
                   <Clipboard className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </button>
+                <label className="p-1.5 text-muted-foreground hover:text-primary hover:bg-muted/50 rounded-md transition-colors cursor-pointer" title="Upload Screenshot">
+                  <ImagePlus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => e.target.files?.[0] && handleImageUpload(e.target.files[0])}
+                  />
+                </label>
               </div>
+
+              {/* Image Preview */}
+              {uploadedImage && (
+                <div className="absolute bottom-2 sm:bottom-3 left-2 sm:left-3 flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-lg px-2 py-1">
+                  <img src={uploadedImage.preview} alt="Upload" className="w-8 h-8 rounded object-cover" />
+                  <span className="text-xs text-primary font-medium">Image attached</span>
+                  <button onClick={() => setUploadedImage(null)} className="p-0.5 text-primary/60 hover:text-primary">
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
 
               {/* Detected code language tag */}
               {detectedLang && (
@@ -467,8 +541,8 @@ export default function Home() {
               {/* Explain Button */}
               <button
                 onClick={handleExplain}
-                disabled={isLoading || !input.trim()}
-                className={`w-full sm:w-auto flex items-center justify-center px-4 sm:px-6 py-2.5 sm:py-2 rounded-lg font-semibold text-sm transition-all shadow-md ${isLoading || !input.trim() ? 'bg-muted text-muted-foreground cursor-not-allowed border border-border' : 'bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-lg active:scale-95'}`}
+                disabled={isLoading || (!input.trim() && !uploadedImage)}
+                className={`w-full sm:w-auto flex items-center justify-center px-4 sm:px-6 py-2.5 sm:py-2 rounded-lg font-semibold text-sm transition-all shadow-md ${isLoading || (!input.trim() && !uploadedImage) ? 'bg-muted text-muted-foreground cursor-not-allowed border border-border' : 'bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-lg active:scale-95'}`}
               >
                 {isLoading ? (
                   <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Thinking</>

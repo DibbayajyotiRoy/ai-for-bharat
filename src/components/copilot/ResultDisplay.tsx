@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { motion, AnimatePresence } from 'framer-motion';
 import { VisualPanel } from './VisualPanel';
@@ -31,6 +31,32 @@ const CREDIBILITY_CONFIG = {
     medium: { icon: AlertCircle, color: 'text-yellow-500', label: 'Community' },
     low: { icon: AlertCircle, color: 'text-orange-400', label: 'Unverified' },
 };
+
+function renderCitations(text: string, sources: Source[]): React.ReactNode[] {
+    const parts = text.split(/(\[\d+\])/g);
+    return parts.map((part, i) => {
+        const match = part.match(/^\[(\d+)\]$/);
+        if (match) {
+            const idx = parseInt(match[1]) - 1;
+            const source = sources[idx];
+            if (source) {
+                return (
+                    <a
+                        key={i}
+                        href={source.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center justify-center w-5 h-5 ml-0.5 mr-0.5 text-[10px] font-bold bg-primary/15 text-primary rounded-full hover:bg-primary/25 transition-colors cursor-pointer no-underline align-super"
+                        title={`${source.title}: ${source.summary}`}
+                    >
+                        {match[1]}
+                    </a>
+                );
+            }
+        }
+        return <span key={i}>{part}</span>;
+    });
+}
 
 export function ResultDisplay({ content, theme, translatedSections, viewMode = 'source', animationData }: ResultDisplayProps) {
     const { sections, sources } = parseSections(content);
@@ -102,7 +128,24 @@ export function ResultDisplay({ content, theme, translatedSections, viewMode = '
                                     exit={{ opacity: 0, x: 10 }}
                                     className="prose prose-lg md:prose-xl prose-slate dark:prose-invert max-w-none prose-p:leading-relaxed prose-headings:font-semibold prose-a:text-primary font-sans"
                                 >
-                                    <ReactMarkdown>
+                                    <ReactMarkdown
+                                        components={sources.length > 0 ? {
+                                            p({ children }) {
+                                                const text = typeof children === 'string' ? children : '';
+                                                if (text && /\[\d+\]/.test(text)) {
+                                                    return <p>{renderCitations(text, sources)}</p>;
+                                                }
+                                                return <p>{children}</p>;
+                                            },
+                                            li({ children }) {
+                                                const text = typeof children === 'string' ? children : '';
+                                                if (text && /\[\d+\]/.test(text)) {
+                                                    return <li>{renderCitations(text, sources)}</li>;
+                                                }
+                                                return <li>{children}</li>;
+                                            },
+                                        } : undefined}
+                                    >
                                         {sections.explanation}
                                     </ReactMarkdown>
                                 </motion.div>

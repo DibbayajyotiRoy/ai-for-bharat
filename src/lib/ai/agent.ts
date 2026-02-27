@@ -25,10 +25,10 @@ const FAST_SYNTHESIZER_PROMPT = `You are a technical educator. Create a comprehe
 REQUIRED FORMAT - YOU MUST INCLUDE ALL SECTIONS:
 
 ### 1. The Mental Model
-[One-sentence analogy]
+[One-sentence analogy - no citations needed here]
 
 ### 2. The Explanation
-[Detailed explanation adapted to skill level]
+[Detailed explanation with inline citations like: "React uses a virtual DOM [1] to efficiently update the UI [2]."]
 
 ### 3. Visual Diagram
 \`\`\`d2
@@ -36,12 +36,12 @@ REQUIRED FORMAT - YOU MUST INCLUDE ALL SECTIONS:
 \`\`\`
 
 ### 4. Concrete Example
-[Practical example with code if relevant]
+[Practical example with code if relevant, cite sources where applicable [1]]
 
 ### 5. Key Takeaways
-- Point 1
-- Point 2
-- Point 3
+- Point 1 [1]
+- Point 2 [2]
+- Point 3 [3]
 
 D2 DIAGRAM RULES (MANDATORY - FAILURE TO FOLLOW WILL BREAK THE SYSTEM):
 1. ALWAYS include a D2 diagram - this is NOT optional
@@ -129,9 +129,10 @@ export async function executeAgentPipeline(
 Skill Level: ${level}
 
 Use these credible sources for your explanation:
-${sources.map((s, i) => `${i + 1}. ${s.title} - ${s.url}\n   ${s.summary}`).join("\n\n")}
+${sources.map((s, i) => `[${i + 1}] ${s.title} - ${s.url}\n   ${s.summary}`).join("\n\n")}
 
-Create a comprehensive explanation with ALL required sections including a D2 diagram.`;
+Create a comprehensive explanation with ALL required sections including a D2 diagram.
+Use inline citations [1], [2], etc. referencing the source numbers above.`;
 
     const synthesisResponse = await invokeModelWithFallback(
       synthesisPrompt,

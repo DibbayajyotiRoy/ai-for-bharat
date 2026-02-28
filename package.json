@@ -12,7 +12,13 @@
     "fix:permissions": "bash scripts/fix-iam-permissions.sh",
     "test:api": "tsx --env-file=.env scripts/test-agent-real-search.ts",
     "test:languages": "tsx --env-file=.env scripts/test-languages.ts",
-    "test:agent": "tsx --env-file=.env scripts/test-agent-real-search.ts"
+    "test:agent": "tsx --env-file=.env scripts/test-agent-real-search.ts",
+    "setup:kb": "bash scripts/setup-knowledge-base.sh",
+    "setup:guardrails": "bash scripts/setup-guardrails.sh",
+    "setup:cognito": "bash scripts/setup-cognito.sh",
+    "setup:whatsapp": "bash scripts/setup-whatsapp.sh",
+    "setup:telegram": "bash scripts/setup-telegram.sh",
+    "setup:all": "npm run setup:aws && npm run setup:guardrails && npm run setup:cognito && npm run setup:dashboard"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-agent-runtime": "^3.1000.0",

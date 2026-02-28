@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, ArrowRight, Loader2, X, Clipboard, Brain, Globe, History, ImagePlus } from 'lucide-react';
+import { Sparkles, ArrowRight, Loader2, X, Clipboard, Brain, Globe, History, ImagePlus, Route, BookOpen, Code, Rocket, Hammer } from 'lucide-react';
 import { ResultDisplay } from '@/components/copilot/ResultDisplay';
 import { QuizDisplay } from '@/components/copilot/QuizDisplay';
 import { ChatHistory } from '@/components/copilot/ChatHistory';
@@ -10,13 +10,30 @@ import { AuthModal } from '@/components/copilot/AuthModal';
 import { UserMenu } from '@/components/copilot/UserMenu';
 import { ProfilePrompt } from '@/components/copilot/ProfilePrompt';
 import { CreateProfileButton } from '@/components/copilot/CreateProfileButton';
+import { ImageViewer } from '@/components/copilot/ImageViewer';
 import type { QuizData } from '@/lib/ai/quiz';
 import { LANGUAGE_NAMES, LANGUAGE_SHORT, type SupportedLanguage } from '@/lib/ai/translation';
 import { shouldUseAnimation } from '@/lib/ai/animation';
 import type { AnimationData } from '@/lib/ai/animation';
+import type { LearningPath } from '@/lib/ai/learning-path';
 import { getActiveUser, getAllProfiles, createProfile, deleteProfile, setActiveUser, logout, type UserProfile } from '@/lib/auth';
 
 const SUPPORTED_LANGUAGES: SupportedLanguage[] = ['en', 'hi', 'bn', 'mr'];
+
+const SAMPLE_QUERIES = [
+  { label: 'React Hooks', query: 'React hooks', icon: '⚛️' },
+  { label: 'Binary Search', query: 'Binary search algorithm', icon: '🔍' },
+  { label: 'REST vs GraphQL', query: 'REST API vs GraphQL', icon: '🌐' },
+  { label: 'Python Decorators', query: 'Python decorators', icon: '🐍' },
+];
+
+const STEP_TYPE_ICONS: Record<string, typeof BookOpen> = {
+  prerequisite: BookOpen,
+  core: Sparkles,
+  practice: Code,
+  advanced: Rocket,
+  project: Hammer,
+};
 
 export default function Home() {
   const [input, setInput] = useState('');
@@ -39,7 +56,7 @@ export default function Home() {
 
   // Chat history state
   const [showHistory, setShowHistory] = useState(false);
-  
+
   // Auth state
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -49,6 +66,15 @@ export default function Home() {
 
   // Image upload state
   const [uploadedImage, setUploadedImage] = useState<{ base64: string; mimeType: string; preview: string } | null>(null);
+  const [showImageViewer, setShowImageViewer] = useState(false);
+
+  // Follow-up questions state
+  const [followUpQuestions, setFollowUpQuestions] = useState<Array<{ question: string; category: string }>>([]);
+
+  // Learning path state
+  const [learningPath, setLearningPath] = useState<LearningPath | null>(null);
+  const [isLoadingPath, setIsLoadingPath] = useState(false);
+  const [showLearningPath, setShowLearningPath] = useState(false);
 
   // Animation state
   const [animationData, setAnimationData] = useState<AnimationData | null>(null);
@@ -72,11 +98,14 @@ export default function Home() {
     setDetectedLang('Text');
   }, [input]);
 
-  // ── System theme preference ───────────────────────────────────────────────
+  // ── System theme preference + PWA service worker ───────────────────────
   useEffect(() => {
     if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
       setTheme('dark');
       document.documentElement.classList.add('dark');
+    }
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => { });
     }
   }, []);
 
@@ -84,9 +113,9 @@ export default function Home() {
   useEffect(() => {
     const user = getActiveUser();
     const allProfiles = getAllProfiles();
-    
+
     setProfiles(allProfiles);
-    
+
     if (user) {
       setCurrentUser(user);
     }
@@ -98,7 +127,7 @@ export default function Home() {
     if (!currentUser && result && !isLoading) {
       const count = questionsAsked + 1;
       setQuestionsAsked(count);
-      
+
       // Show prompt only after 5 questions (less annoying)
       if (count === 5) {
         setShowProfilePrompt(true);
@@ -133,7 +162,7 @@ export default function Home() {
   const handleDeleteProfile = (userId: string) => {
     deleteProfile(userId);
     setProfiles(getAllProfiles());
-    
+
     // If deleted current user, logout
     if (currentUser?.id === userId) {
       setCurrentUser(null);
@@ -209,9 +238,9 @@ export default function Home() {
     }
     if (!result || isLoading) return;
     handleTranslate(result, language);
-  // handleTranslate is stable (useCallback); intentionally excluding result/isLoading
-  // to avoid re-translating on every streamed chunk — we translate once on language change.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // handleTranslate is stable (useCallback); intentionally excluding result/isLoading
+    // to avoid re-translating on every streamed chunk — we translate once on language change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [language]);
 
   // ── Quiz ──────────────────────────────────────────────────────────────────
@@ -248,6 +277,9 @@ export default function Home() {
     setShowQuiz(false);
     setQuizData(null);
     setAnimationData(null);
+    setFollowUpQuestions([]);
+    setLearningPath(null);
+    setShowLearningPath(false);
 
     try {
       // Image mode: use multimodal endpoint
@@ -271,6 +303,9 @@ export default function Home() {
         if (language !== 'en' && fullResult) {
           handleTranslate(fullResult, language);
         }
+
+        // Fetch follow-up questions in background
+        fetchFollowUpQuestions(input || 'this image', fullResult);
 
         setUploadedImage(null);
       } else {
@@ -301,6 +336,9 @@ export default function Home() {
           handleTranslate(fullResult, language);
         }
 
+        // Fetch follow-up questions in background
+        fetchFollowUpQuestions(input, fullResult);
+
         // Check if we should generate animation
         if (shouldUseAnimation(input)) {
           generateAnimationForQuery(input);
@@ -329,7 +367,7 @@ export default function Home() {
       });
 
       if (!res.ok) throw new Error('Animation generation failed');
-      
+
       const data = await res.json();
       setAnimationData(data.animation);
       console.log('[Animation] Generated successfully');
@@ -343,7 +381,7 @@ export default function Home() {
 
   const extractConcept = (query: string): string => {
     const concepts = [
-      'binary tree', 'linked list', 'array', 'stack', 'queue', 'tree', 'graph', 
+      'binary tree', 'linked list', 'array', 'stack', 'queue', 'tree', 'graph',
       'hash table', 'binary search tree', 'heap', 'trie', 'avl tree'
     ];
     const queryLower = query.toLowerCase();
@@ -354,9 +392,44 @@ export default function Home() {
     const operations = ['insert', 'delete', 'search', 'traverse', 'sort', 'push', 'pop', 'enqueue', 'dequeue'];
     const queryLower = query.toLowerCase();
     const foundOp = operations.find(op => queryLower.includes(op));
-    
+
     // If no operation found, use "structure" for structural queries
     return foundOp || 'structure visualization';
+  };
+
+  // ── Follow-up questions (fire-and-forget after explanation) ─────────────
+  const fetchFollowUpQuestions = (query: string, explanation: string) => {
+    fetch('/api/follow-up', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, explanation: explanation.substring(0, 500), level }),
+    })
+      .then(r => r.json())
+      .then(d => setFollowUpQuestions(d.questions || []))
+      .catch(() => { });
+  };
+
+  // ── Learning Path ─────────────────────────────────────────────────────
+  const handleGenerateLearningPath = async () => {
+    if (!input.trim()) return;
+    setIsLoadingPath(true);
+    setShowLearningPath(false);
+    setLearningPath(null);
+    try {
+      const res = await fetch('/api/learning-path', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topic: input, level }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setLearningPath(data.path);
+      setShowLearningPath(true);
+    } catch (err) {
+      console.error('[LearningPath] Failed:', err);
+    } finally {
+      setIsLoadingPath(false);
+    }
   };
 
   const handlePaste = async () => {
@@ -407,7 +480,7 @@ export default function Home() {
           <p className="text-muted-foreground text-base sm:text-lg max-w-lg mx-auto font-light px-4">
             Paste code, text, or a concept. Get a structured explanation instantly.
           </p>
-          
+
           {/* GitHub Star CTA */}
           <motion.a
             href="https://github.com/DibbayajyotiRoy/ai-for-bharat"
@@ -419,7 +492,7 @@ export default function Home() {
             className="inline-flex items-center gap-2 mt-4 sm:mt-6 px-3 sm:px-4 py-2 bg-gradient-to-r from-gray-800 to-gray-900 dark:from-gray-700 dark:to-gray-800 text-white rounded-full text-xs sm:text-sm font-medium hover:from-gray-700 hover:to-gray-800 dark:hover:from-gray-600 dark:hover:to-gray-700 transition-all shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 group"
           >
             <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+              <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
             </svg>
             <span className="hidden xs:inline">Star on GitHub</span>
             <span className="xs:hidden">Star</span>
@@ -473,10 +546,18 @@ export default function Home() {
 
               {/* Image Preview */}
               {uploadedImage && (
-                <div className="absolute bottom-2 sm:bottom-3 left-2 sm:left-3 flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-lg px-2 py-1">
+                <div
+                  className="absolute bottom-2 sm:bottom-3 left-2 sm:left-3 flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-lg px-2 py-1 cursor-pointer hover:bg-primary/20 transition-colors"
+                  onClick={() => setShowImageViewer(true)}
+                  title="Click to view full image"
+                >
                   <img src={uploadedImage.preview} alt="Upload" className="w-8 h-8 rounded object-cover" />
                   <span className="text-xs text-primary font-medium">Image attached</span>
-                  <button onClick={() => setUploadedImage(null)} className="p-0.5 text-primary/60 hover:text-primary">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setUploadedImage(null); setShowImageViewer(false); }}
+                    className="p-0.5 ml-1 text-primary/60 hover:text-primary rounded-full hover:bg-primary/10 transition-colors"
+                    title="Remove image"
+                  >
                     <X className="w-3 h-3" />
                   </button>
                 </div>
@@ -554,21 +635,34 @@ export default function Home() {
           </div>
         </motion.div>
 
-        {/* Keyboard hints */}
+        {/* Sample Queries + Keyboard Hints (only when no result) */}
         <AnimatePresence>
-          {!input && (
-            <motion.p
+          {!input && !result && (
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="mt-6 text-muted-foreground text-sm flex items-center"
+              className="mt-6 flex flex-col items-center gap-4"
             >
-              <kbd className="px-2 py-1 bg-muted border border-border rounded text-muted-foreground text-xs mr-2">⌘ V</kbd>
-              to paste
-              <span className="mx-2 text-border">|</span>
-              <kbd className="px-2 py-1 bg-muted border border-border rounded text-muted-foreground text-xs mr-2">⌘ Enter</kbd>
-              to explain
-            </motion.p>
+              <div className="flex flex-wrap justify-center gap-2">
+                {SAMPLE_QUERIES.map((sq) => (
+                  <button
+                    key={sq.query}
+                    onClick={() => setInput(sq.query)}
+                    className="px-3 py-1.5 text-xs bg-card border border-border/50 rounded-full text-muted-foreground hover:text-foreground hover:border-primary/30 hover:bg-primary/5 transition-all"
+                  >
+                    {sq.icon} {sq.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-muted-foreground text-sm flex items-center">
+                <kbd className="px-2 py-1 bg-muted border border-border rounded text-muted-foreground text-xs mr-2">⌘ V</kbd>
+                to paste
+                <span className="mx-2 text-border">|</span>
+                <kbd className="px-2 py-1 bg-muted border border-border rounded text-muted-foreground text-xs mr-2">⌘ Enter</kbd>
+                to explain
+              </p>
+            </motion.div>
           )}
         </AnimatePresence>
 
@@ -652,9 +746,24 @@ export default function Home() {
                 animationData={animationData ?? undefined}
               />
 
-              {/* Active Learning — Quiz Section */}
+              {/* Follow-up Questions */}
+              {followUpQuestions.length > 0 && (
+                <div className="flex flex-wrap gap-2 justify-center py-2">
+                  {followUpQuestions.map((fq, i) => (
+                    <button
+                      key={i}
+                      onClick={() => { setInput(fq.question); setFollowUpQuestions([]); }}
+                      className="px-4 py-2 text-sm bg-card border border-border rounded-full hover:border-primary/50 hover:bg-primary/5 transition-all text-foreground/80 hover:text-foreground"
+                    >
+                      {fq.category === 'deeper' ? '🔬' : fq.category === 'practical' ? '🛠️' : '🔗'} {fq.question}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Active Learning — Quiz + Learning Path Buttons */}
               {!showQuiz ? (
-                <div className="flex justify-center pt-2 pb-4">
+                <div className="flex flex-wrap justify-center gap-3 pt-2 pb-4">
                   <button
                     onClick={handleGenerateQuiz}
                     disabled={isLoadingQuiz}
@@ -665,10 +774,71 @@ export default function Home() {
                       : <><Brain className="w-4 h-4 text-primary" />Test My Knowledge</>
                     }
                   </button>
+                  <button
+                    onClick={handleGenerateLearningPath}
+                    disabled={isLoadingPath}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm border transition-all shadow-sm ${isLoadingPath ? 'bg-muted text-muted-foreground border-border cursor-not-allowed' : 'bg-card text-foreground border-border hover:border-primary/50 hover:bg-primary/5 hover:shadow-md active:scale-95'}`}
+                  >
+                    {isLoadingPath
+                      ? <><Loader2 className="w-4 h-4 animate-spin" />Generating Path...</>
+                      : <><Route className="w-4 h-4 text-primary" />Learning Path</>
+                    }
+                  </button>
                 </div>
               ) : quizData ? (
-                <QuizDisplay quiz={quizData} onClose={() => setShowQuiz(false)} />
+                <QuizDisplay quiz={quizData} onClose={() => setShowQuiz(false)} userId={currentUser?.id} />
               ) : null}
+
+              {/* Learning Path Timeline */}
+              {showLearningPath && learningPath && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="w-full max-w-2xl mx-auto bg-card border border-border rounded-xl p-6 shadow-sm"
+                >
+                  <div className="flex items-center justify-between mb-6">
+                    <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                      <Route className="w-5 h-5 text-primary" />
+                      Learning Path: {learningPath.topic}
+                    </h3>
+                    <button onClick={() => setShowLearningPath(false)} className="p-1 text-muted-foreground hover:text-foreground">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="space-y-0">
+                    {learningPath.steps.map((step, i) => {
+                      const StepIcon = STEP_TYPE_ICONS[step.type] || BookOpen;
+                      return (
+                        <div key={i} className="flex gap-4">
+                          <div className="flex flex-col items-center">
+                            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center border-2 border-primary/30">
+                              <StepIcon className="w-4 h-4 text-primary" />
+                            </div>
+                            {i < learningPath.steps.length - 1 && (
+                              <div className="w-0.5 h-full bg-border/50 my-1" />
+                            )}
+                          </div>
+                          <div className="pb-6 flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-xs font-bold text-primary uppercase">{step.type}</span>
+                              <span className="text-xs text-muted-foreground">{step.estimatedTime}</span>
+                            </div>
+                            <h4 className="font-semibold text-foreground text-sm">{step.title}</h4>
+                            <p className="text-xs text-muted-foreground mt-1">{step.description}</p>
+                            {step.resources.length > 0 && (
+                              <div className="flex flex-wrap gap-1.5 mt-2">
+                                {step.resources.map((r, j) => (
+                                  <span key={j} className="text-[10px] px-2 py-0.5 bg-muted/50 border border-border/30 rounded-full text-muted-foreground">{r}</span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+              )}
 
             </motion.div>
           ) : null}
@@ -742,6 +912,13 @@ export default function Home() {
           onSelectChat={handleSelectChat}
         />
       )}
+
+      {/* Image Viewer Modal */}
+      <ImageViewer
+        isOpen={showImageViewer}
+        imageUrl={uploadedImage?.preview || null}
+        onClose={() => setShowImageViewer(false)}
+      />
     </main>
   );
 }

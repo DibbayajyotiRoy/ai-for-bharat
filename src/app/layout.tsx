@@ -22,7 +22,14 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Learning Copilot",
-  description: "Explain concepts, not yourself.",
+  description: "AI-powered learning assistant. Paste code, text, or concepts for structured explanations with diagrams, citations, and quizzes.",
+  manifest: "/manifest.json",
+  themeColor: "#6366f1",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Learning Copilot",
+  },
 };
 
 export default function RootLayout({

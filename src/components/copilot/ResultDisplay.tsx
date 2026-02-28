@@ -6,9 +6,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { VisualPanel } from './VisualPanel';
 import { AnimationPlayer } from './AnimationPlayer';
 import type { AnimationData } from '@/lib/ai/animation';
-import { Check, ChevronDown, ChevronUp, Copy, BookOpen, ExternalLink, Shield, AlertCircle, Image as ImageIcon } from 'lucide-react';
+import { Check, ChevronDown, ChevronUp, Copy, BookOpen, ExternalLink, Shield, AlertCircle, Image as ImageIcon, Volume2, Loader2, Play } from 'lucide-react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { CodePlayground } from './CodePlayground';
 
 interface ResultDisplayProps {
     content: string;
@@ -58,6 +59,81 @@ function renderCitations(text: string, sources: Source[]): React.ReactNode[] {
     });
 }
 
+function TTSButton({ text, language = 'en' }: { text: string; language?: string }) {
+    const [isPlaying, setIsPlaying] = useState(false);
+    const handleSpeak = async () => {
+        if (isPlaying || !text) return;
+        setIsPlaying(true);
+        try {
+            const res = await fetch('/api/tts', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: text.substring(0, 500), language }),
+            });
+            if (!res.ok) throw new Error('TTS failed');
+            const blob = await res.blob();
+            const url = URL.createObjectURL(blob);
+            const audio = new Audio(url);
+            audio.onended = () => { setIsPlaying(false); URL.revokeObjectURL(url); };
+            audio.onerror = () => { setIsPlaying(false); URL.revokeObjectURL(url); };
+            await audio.play();
+        } catch {
+            setIsPlaying(false);
+        }
+    };
+    return (
+        <button onClick={handleSpeak} disabled={isPlaying} className="p-1 text-muted-foreground hover:text-primary transition-colors" title="Listen">
+            {isPlaying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Volume2 className="w-3.5 h-3.5" />}
+        </button>
+    );
+}
+
+function InteractiveCodeBlock({ language, code, theme, isRunnable, restProps }: {
+    language: string; code: string; theme: 'light' | 'dark'; isRunnable: boolean; restProps: any;
+}) {
+    const [interactive, setInteractive] = useState(false);
+    return (
+        <div className="relative group my-6 rounded-lg overflow-hidden border border-border/50 shadow-sm not-prose">
+            <div className="flex items-center justify-between px-4 py-2 bg-muted/80 backdrop-blur border-b border-border/50">
+                <span className="text-sm font-mono text-muted-foreground font-semibold">{language}</span>
+                <div className="flex items-center gap-2">
+                    {isRunnable && (
+                        <button
+                            className={`text-xs transition-colors flex items-center gap-1.5 font-medium ${interactive ? 'text-primary' : 'text-muted-foreground hover:text-primary'}`}
+                            onClick={() => setInteractive(!interactive)}
+                        >
+                            <Play className="w-3.5 h-3.5" /> {interactive ? 'Static' : 'Run'}
+                        </button>
+                    )}
+                    <button
+                        className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5 font-medium"
+                        onClick={() => navigator.clipboard.writeText(code)}
+                    >
+                        <Copy className="w-3.5 h-3.5" /> Copy
+                    </button>
+                </div>
+            </div>
+            {interactive ? (
+                <CodePlayground code={code} language={language} theme={theme} />
+            ) : (
+                <SyntaxHighlighter
+                    {...restProps}
+                    style={theme === 'dark' ? oneDark : oneLight}
+                    language={language}
+                    PreTag="div"
+                    customStyle={{
+                        margin: 0, borderRadius: 0,
+                        background: theme === 'dark' ? '#09090b' : '#fafafa',
+                        fontSize: '1rem', lineHeight: '1.6', padding: '1.5rem'
+                    }}
+                >
+                    {code}
+                </SyntaxHighlighter>
+            )}
+        </div>
+    );
+}
+
 export function ResultDisplay({ content, theme, translatedSections, viewMode = 'source', animationData }: ResultDisplayProps) {
     const { sections, sources } = parseSections(content);
     const [activeTab, setActiveTab] = useState<'explanation' | 'example'>('explanation');
@@ -87,6 +163,7 @@ export function ResultDisplay({ content, theme, translatedSections, viewMode = '
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                         <h3 className="text-[10px] sm:text-xs font-bold text-primary/60 uppercase tracking-widest font-sans">Mental Model</h3>
+                        <TTSButton text={displayedMentalModel} />
                         {showTranslated && (
                             <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary rounded font-medium">
                                 Translated
@@ -162,34 +239,16 @@ export function ResultDisplay({ content, theme, translatedSections, viewMode = '
                                             code({ node, className, children, ...props }) {
                                                 const match = /language-(\w+)/.exec(className || '')
                                                 const { ref, ...rest } = props;
+                                                const codeString = String(children).replace(/\n$/, '');
+                                                const isRunnable = match && ['javascript', 'js', 'typescript', 'ts', 'jsx', 'tsx'].includes(match[1].toLowerCase());
                                                 return match ? (
-                                                    <div className="relative group my-6 rounded-lg overflow-hidden border border-border/50 shadow-sm not-prose">
-                                                        <div className="flex items-center justify-between px-4 py-2 bg-muted/80 backdrop-blur border-b border-border/50">
-                                                            <span className="text-sm font-mono text-muted-foreground font-semibold">{match[1]}</span>
-                                                            <button
-                                                                className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5 font-medium"
-                                                                onClick={() => navigator.clipboard.writeText(String(children).replace(/\n$/, ''))}
-                                                            >
-                                                                <Copy className="w-3.5 h-3.5" /> Copy
-                                                            </button>
-                                                        </div>
-                                                        <SyntaxHighlighter
-                                                            {...rest}
-                                                            style={theme === 'dark' ? oneDark : oneLight}
-                                                            language={match[1]}
-                                                            PreTag="div"
-                                                            customStyle={{
-                                                                margin: 0,
-                                                                borderRadius: 0,
-                                                                background: theme === 'dark' ? '#09090b' : '#fafafa',
-                                                                fontSize: '1rem',
-                                                                lineHeight: '1.6',
-                                                                padding: '1.5rem'
-                                                            }}
-                                                        >
-                                                            {String(children).replace(/\n$/, '')}
-                                                        </SyntaxHighlighter>
-                                                    </div>
+                                                    <InteractiveCodeBlock
+                                                        language={match[1]}
+                                                        code={codeString}
+                                                        theme={theme}
+                                                        isRunnable={!!isRunnable}
+                                                        restProps={rest}
+                                                    />
                                                 ) : (
                                                     <code className="bg-muted px-1.5 py-0.5 rounded font-mono text-sm text-foreground" {...props}>
                                                         {children}
@@ -219,15 +278,18 @@ export function ResultDisplay({ content, theme, translatedSections, viewMode = '
 
             {/* 4. BOTTOM: Key Takeaways (Collapsible) */}
             <div className="w-full bg-card border border-border rounded-xl overflow-hidden shadow-sm transition-all duration-300">
-                <button
+                <div
                     onClick={() => setIsTakeawaysExpanded(!isTakeawaysExpanded)}
-                    className="w-full flex items-center justify-between p-4 hover:bg-muted/50 transition-colors"
+                    className="w-full flex items-center justify-between p-4 hover:bg-muted/50 transition-colors cursor-pointer"
+                    role="button"
+                    tabIndex={0}
                 >
                     <div className="flex items-center gap-3">
                         <div className="bg-primary/10 p-1.5 rounded-full">
                             <Check className="w-4 h-4 text-primary" />
                         </div>
                         <span className="font-semibold text-foreground">Key Takeaways</span>
+                        <TTSButton text={displayedTakeaways} />
                         {showTranslated && (
                             <span className="text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary rounded font-medium">
                                 Translated
@@ -238,7 +300,7 @@ export function ResultDisplay({ content, theme, translatedSections, viewMode = '
                         </span>
                     </div>
                     {isTakeawaysExpanded ? <ChevronUp className="text-muted-foreground" /> : <ChevronDown className="text-muted-foreground" />}
-                </button>
+                </div>
 
                 <AnimatePresence>
                     {isTakeawaysExpanded && (
@@ -263,9 +325,11 @@ export function ResultDisplay({ content, theme, translatedSections, viewMode = '
             {/* 5. SOURCES (Research mode only — collapsible) */}
             {sources.length > 0 && (
                 <div className="w-full bg-card border border-border rounded-xl overflow-hidden shadow-sm">
-                    <button
+                    <div
                         onClick={() => setAreSourcesExpanded(!areSourcesExpanded)}
-                        className="w-full flex items-center justify-between p-4 hover:bg-muted/50 transition-colors"
+                        className="w-full flex items-center justify-between p-4 hover:bg-muted/50 transition-colors cursor-pointer"
+                        role="button"
+                        tabIndex={0}
                     >
                         <div className="flex items-center gap-3">
                             <div className="bg-blue-500/10 p-1.5 rounded-full">
@@ -277,7 +341,7 @@ export function ResultDisplay({ content, theme, translatedSections, viewMode = '
                             </span>
                         </div>
                         {areSourcesExpanded ? <ChevronUp className="text-muted-foreground" /> : <ChevronDown className="text-muted-foreground" />}
-                    </button>
+                    </div>
 
                     <AnimatePresence>
                         {areSourcesExpanded && (

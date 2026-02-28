@@ -3,6 +3,7 @@ import {
   InvokeModelCommand,
   InvokeModelWithResponseStreamCommand,
 } from "@aws-sdk/client-bedrock-runtime";
+import { getGuardrailConfig } from "./guardrails";
 
 const client = new BedrockRuntimeClient({
   region: process.env.AWS_REGION || "us-east-1",
@@ -56,11 +57,16 @@ export async function invokeModelWithFallback(
         },
       };
 
+      const guardrailConfig = getGuardrailConfig();
       const command = new InvokeModelCommand({
         modelId: model.id,
         contentType: "application/json",
         accept: "application/json",
         body: JSON.stringify(payload),
+        ...(guardrailConfig && {
+          guardrailIdentifier: guardrailConfig.guardrailIdentifier,
+          guardrailVersion: guardrailConfig.guardrailVersion,
+        }),
       });
 
       const response = await client.send(command);
@@ -125,11 +131,16 @@ export async function* streamModelWithFallback(
         },
       };
 
+      const guardrailConfig = getGuardrailConfig();
       const command = new InvokeModelWithResponseStreamCommand({
         modelId: model.id,
         contentType: "application/json",
         accept: "application/json",
         body: JSON.stringify(payload),
+        ...(guardrailConfig && {
+          guardrailIdentifier: guardrailConfig.guardrailIdentifier,
+          guardrailVersion: guardrailConfig.guardrailVersion,
+        }),
       });
 
       const response = await client.send(command);

@@ -8,9 +8,13 @@ export async function synthesizeSpeech(
   text: string,
   languageCode: string = "en"
 ): Promise<Buffer> {
-  const voiceMap: Record<string, { voiceId: VoiceId; langCode: LanguageCode }> = {
-    en: { voiceId: "Joanna", langCode: "en-US" },
-    hi: { voiceId: "Kajal", langCode: "hi-IN" },
+  const voiceMap: Record<string, { voiceId: VoiceId; langCode: LanguageCode; engine?: "standard" | "neural" }> = {
+    en: { voiceId: "Joanna", langCode: "en-US", engine: "neural" },
+    hi: { voiceId: "Kajal", langCode: "hi-IN", engine: "neural" },
+    // AWS Polly supports 'Aditi' for hi-IN and en-IN, but let's just fallback to hi-IN for now if unsupported, 
+    // or use standard voices if available. For this project, let's map them.
+    bn: { voiceId: "Aditi", langCode: "hi-IN", engine: "standard" }, // Fallback to Aditi (closest Indian voice if Bengali is missing)
+    mr: { voiceId: "Aditi", langCode: "hi-IN", engine: "standard" },
   };
 
   const voice = voiceMap[languageCode] || voiceMap.en;
@@ -20,7 +24,7 @@ export async function synthesizeSpeech(
     OutputFormat: "mp3",
     VoiceId: voice.voiceId,
     LanguageCode: voice.langCode,
-    Engine: "neural",
+    Engine: voice.engine || "neural",
   });
 
   const response = await client.send(command);

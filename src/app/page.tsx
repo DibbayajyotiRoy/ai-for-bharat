@@ -500,6 +500,27 @@ export default function Home() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
             </svg>
           </motion.a>
+
+          {/* Extensions and Bots Links */}
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="flex flex-wrap justify-center gap-3 mt-4 px-4"
+          >
+            <a href="https://github.com/DibbayajyotiRoy/ai-for-bharat/tree/main/vscode-extension" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3 py-1.5 bg-card/60 backdrop-blur border border-border/50 rounded-full text-xs font-medium text-foreground hover:bg-muted/60 transition-colors shadow-sm cursor-pointer">
+              <Code className="w-3.5 h-3.5 text-blue-500" />
+              VS Code Extension
+            </a>
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-card/60 backdrop-blur border border-border/50 rounded-full text-xs font-medium text-foreground shadow-sm cursor-pointer hover:bg-muted/60 transition-colors" onClick={() => alert("To use the Telegram bot, see scripts/setup-telegram.sh and start the bot.")}>
+              <svg className="w-3.5 h-3.5 text-[#0088cc]" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.19-.08-.05-.19-.02-.27 0-.12.03-1.98 1.26-5.46 3.6-.51.35-.97.52-1.38.51-.45-.01-1.31-.26-1.94-.47-.78-.26-1.4-.4-1.35-.85.03-.24.36-.48 1-.74 3.93-1.7 6.55-2.82 7.84-3.35 3.74-1.53 4.51-1.8 5.01-1.8.11 0 .35.03.48.14.11.09.14.22.15.34.01.1-.01.24-.03.4z" /></svg>
+              Telegram Bot
+            </div>
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-card/60 backdrop-blur border border-border/50 rounded-full text-xs font-medium text-foreground shadow-sm cursor-pointer hover:bg-muted/60 transition-colors" onClick={() => alert("To use the WhatsApp bot, see scripts/setup-whatsapp.sh and configure Twilio.")}>
+              <svg className="w-3.5 h-3.5 text-[#25D366]" fill="currentColor" viewBox="0 0 24 24"><path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.77-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.299.045-.677.063-1.092-.069-.252-.08-.575-.187-.988-.365-1.739-.751-2.874-2.502-2.961-2.617-.087-.116-.708-.94-.708-1.793 0-.853.448-1.273.607-1.446.159-.173.346-.217.462-.217l.332.006c.106.005.249-.04.39.298.144.347.491 1.2.534 1.287.043.087.072.188.014.304-.058.116-.087.188-.173.289l-.26.304c-.087.086-.177.18-.076.354.101.174.449.741.964 1.201.662.591 1.221.774 1.394.86s.274.072.376-.043c.101-.116.433-.506.549-.68.116-.173.231-.145.39-.087s1.011.477 1.184.564.289.13.332.202c.045.072.045.419-.098.824zM20.056 3.93C17.91 1.782 15.056.6 12.037.6 5.866.6.845 5.626.845 11.8c0 2.072.569 4.095 1.636 5.832l-2.071 7.425 7.643-1.956c1.696.953 3.655 1.458 5.989 1.458 6.173 0 11.206-5.029 11.209-11.209.001-3.003-1.168-5.83-3.195-7.42z" /></svg>
+              WhatsApp Bot
+            </div>
+          </motion.div>
         </motion.div>
 
         {/* Input Area */}
@@ -744,6 +765,7 @@ export default function Home() {
                 translatedSections={translatedSections ?? undefined}
                 viewMode={viewMode}
                 animationData={animationData ?? undefined}
+                language={viewMode === 'translated' ? language : 'en'}
               />
 
               {/* Follow-up Questions */}

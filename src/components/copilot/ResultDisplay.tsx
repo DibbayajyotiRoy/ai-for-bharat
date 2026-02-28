@@ -18,6 +18,7 @@ interface ResultDisplayProps {
     translatedSections?: { mentalModel: string; takeaways: string };
     viewMode?: 'source' | 'translated';
     animationData?: AnimationData;
+    language?: string;
 }
 
 interface Source {
@@ -134,7 +135,7 @@ function InteractiveCodeBlock({ language, code, theme, isRunnable, restProps }: 
     );
 }
 
-export function ResultDisplay({ content, theme, translatedSections, viewMode = 'source', animationData }: ResultDisplayProps) {
+export function ResultDisplay({ content, theme, translatedSections, viewMode = 'source', animationData, language }: ResultDisplayProps) {
     const { sections, sources } = parseSections(content);
     const [activeTab, setActiveTab] = useState<'explanation' | 'example'>('explanation');
     const [isTakeawaysExpanded, setIsTakeawaysExpanded] = useState(false);
@@ -163,7 +164,7 @@ export function ResultDisplay({ content, theme, translatedSections, viewMode = '
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                         <h3 className="text-[10px] sm:text-xs font-bold text-primary/60 uppercase tracking-widest font-sans">Mental Model</h3>
-                        <TTSButton text={displayedMentalModel} />
+                        <TTSButton text={displayedMentalModel} language={language || 'en'} />
                         {showTranslated && (
                             <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary rounded font-medium">
                                 Translated
@@ -289,7 +290,7 @@ export function ResultDisplay({ content, theme, translatedSections, viewMode = '
                             <Check className="w-4 h-4 text-primary" />
                         </div>
                         <span className="font-semibold text-foreground">Key Takeaways</span>
-                        <TTSButton text={displayedTakeaways} />
+                        <TTSButton text={displayedTakeaways} language={language || 'en'} />
                         {showTranslated && (
                             <span className="text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary rounded font-medium">
                                 Translated

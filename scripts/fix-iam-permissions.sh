@@ -58,6 +58,13 @@ cat > /tmp/learning-copilot-policy.json << EOF
         "bedrock:ListFoundationModels"
       ],
       "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "polly:SynthesizeSpeech"
+      ],
+      "Resource": "*"
     }
   ]
 }

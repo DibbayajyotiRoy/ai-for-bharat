@@ -1,0 +1,95 @@
+{
+  "name": "learning-copilot",
+  "displayName": "Learning Copilot",
+  "description": "AI-powered learning assistant — highlight code or text and get structured explanations with diagrams, citations, and quizzes.",
+  "version": "0.1.0",
+  "publisher": "learning-copilot",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Education",
+    "Other"
+  ],
+  "keywords": [
+    "ai",
+    "learning",
+    "explain",
+    "education",
+    "bedrock"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "learningCopilot.explain",
+        "title": "Learning Copilot: Explain Selection"
+      },
+      {
+        "command": "learningCopilot.explainResearch",
+        "title": "Learning Copilot: Deep Research Selection"
+      },
+      {
+        "command": "learningCopilot.quiz",
+        "title": "Learning Copilot: Quiz Me on Selection"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "learningCopilot.explain",
+          "when": "editorHasSelection",
+          "group": "learningCopilot@1"
+        },
+        {
+          "command": "learningCopilot.explainResearch",
+          "when": "editorHasSelection",
+          "group": "learningCopilot@2"
+        },
+        {
+          "command": "learningCopilot.quiz",
+          "when": "editorHasSelection",
+          "group": "learningCopilot@3"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Learning Copilot",
+      "properties": {
+        "learningCopilot.apiUrl": {
+          "type": "string",
+          "default": "http://localhost:3000",
+          "description": "Base URL of the Learning Copilot API server"
+        },
+        "learningCopilot.level": {
+          "type": "string",
+          "enum": [
+            "Beginner",
+            "Intermediate",
+            "Advanced"
+          ],
+          "default": "Beginner",
+          "description": "Explanation detail level"
+        }
+      }
+    },
+    "keybindings": [
+      {
+        "command": "learningCopilot.explain",
+        "key": "ctrl+shift+e",
+        "mac": "cmd+shift+e",
+        "when": "editorHasSelection"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.0.0"
+  }
+}

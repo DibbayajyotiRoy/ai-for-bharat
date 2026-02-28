@@ -8,9 +8,10 @@ import type { QuizData, QuizQuestion } from "@/lib/ai/quiz";
 interface QuizDisplayProps {
   quiz: QuizData;
   onClose: () => void;
+  userId?: string;
 }
 
-export function QuizDisplay({ quiz, onClose }: QuizDisplayProps) {
+export function QuizDisplay({ quiz, onClose, userId }: QuizDisplayProps) {
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState<(number | null)[]>(
     new Array(quiz.questions.length).fill(null)
@@ -52,6 +53,7 @@ export function QuizDisplay({ quiz, onClose }: QuizDisplayProps) {
         score={score}
         total={quiz.questions.length}
         topic={quiz.topic}
+        userId={userId}
         onReset={handleReset}
         onClose={onClose}
       />
@@ -185,12 +187,14 @@ function ResultsView({
   score,
   total,
   topic,
+  userId,
   onReset,
   onClose,
 }: {
   score: number;
   total: number;
   topic: string;
+  userId?: string;
   onReset: () => void;
   onClose: () => void;
 }) {
@@ -198,6 +202,25 @@ function ResultsView({
   const emoji = pct >= 80 ? "🎉" : pct >= 60 ? "👍" : "📚";
   const message =
     pct >= 80 ? "Excellent work!" : pct >= 60 ? "Good effort!" : "Keep learning!";
+
+  const [nextReview, setNextReview] = useState<string | null>(null);
+
+  // Save review to spaced repetition engine on mount
+  React.useEffect(() => {
+    fetch("/api/review", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: userId || "anonymous", topic, scorePercent: pct }),
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.intervalDays) {
+          const days = d.intervalDays;
+          setNextReview(days === 1 ? "tomorrow" : `in ${days} days`);
+        }
+      })
+      .catch(() => {});
+  }, [userId, topic, pct]);
 
   return (
     <motion.div
@@ -214,6 +237,11 @@ function ResultsView({
           {score} / {total}
         </div>
         <div className="text-sm text-muted-foreground">{pct}% correct</div>
+        {nextReview && (
+          <div className="text-xs text-primary/70 mt-2 font-medium">
+            Next review: {nextReview}
+          </div>
+        )}
       </div>
 
       <div className="flex gap-3">

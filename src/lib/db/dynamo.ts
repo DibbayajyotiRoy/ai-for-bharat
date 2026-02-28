@@ -130,6 +130,51 @@ export async function fetchRecentInteractions(
   }
 }
 
+// ── Spaced Repetition ─────────────────────────────────────────────────────
+const REVIEW_TABLE = "learning-copilot-reviews";
+
+export interface ReviewRecord {
+  userId: string;
+  topic: string;
+  easeFactor: number;
+  interval: number;
+  repetitions: number;
+  nextReviewDate: number;
+  lastScore: number;
+  expiresAt: number;
+}
+
+export async function saveReviewItem(item: Omit<ReviewRecord, "expiresAt">): Promise<void> {
+  try {
+    const expiresAt = Math.floor(Date.now() / 1000) + 90 * 24 * 60 * 60; // 90-day TTL
+    await client.send(
+      new PutItemCommand({
+        TableName: REVIEW_TABLE,
+        Item: marshall({ ...item, expiresAt }),
+      })
+    );
+    console.log("[DynamoDB] Review item saved");
+  } catch (error: any) {
+    console.warn("[DynamoDB] Review save failed:", error.message);
+  }
+}
+
+export async function fetchDueReviews(userId: string): Promise<ReviewRecord[]> {
+  try {
+    const command = new QueryCommand({
+      TableName: REVIEW_TABLE,
+      KeyConditionExpression: "userId = :uid",
+      FilterExpression: "nextReviewDate <= :now",
+      ExpressionAttributeValues: marshall({ ":uid": userId, ":now": Date.now() }),
+    });
+    const response = await client.send(command);
+    return (response.Items || []).map((item) => unmarshall(item) as ReviewRecord);
+  } catch (error: any) {
+    console.warn("[DynamoDB] Review fetch failed:", error.message);
+    return [];
+  }
+}
+
 export function summarizeHistory(interactions: Interaction[]): string {
   if (interactions.length === 0) {
     return "";

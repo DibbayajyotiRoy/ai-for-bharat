@@ -23,8 +23,8 @@ export async function generateFollowUpQuestions(
   level: string
 ): Promise<FollowUpQuestion[]> {
   try {
-    const prompt = `User's question: ${query}\nSkill level: ${level}\nExplanation summary: ${explanation.substring(0, 500)}`;
-    const response = await invokeModelWithFallback(prompt, FOLLOW_UP_PROMPT, 256);
+    const prompt = `User's question: ${query}\nSkill level: ${level}\nExplanation summary: ${explanation.substring(0, 300)}`;
+    const response = await invokeModelWithFallback(prompt, FOLLOW_UP_PROMPT, 200);
     const parsed = JSON.parse(response.content.trim());
     if (Array.isArray(parsed) && parsed.length > 0) {
       return parsed.slice(0, 3).map((q: any) => ({

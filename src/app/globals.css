@@ -4,8 +4,8 @@
 
 @theme {
   --font-sans: var(--font-inter);
-  --font-serif: var(--font-instrument);
-  --font-mono: var(--font-geist-mono);
+  --font-mono: var(--font-mono);
+  --font-accent: var(--font-accent);
 
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
@@ -203,6 +203,10 @@ html.dark *::-webkit-scrollbar-button:single-button:vertical:increment {
 
   .skeleton-shimmer {
     @apply relative overflow-hidden bg-muted before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_2s_infinite] before:bg-gradient-to-r before:from-transparent before:via-foreground/5 before:to-transparent;
+  }
+
+  .animate-shimmer {
+    animation: shimmer 2s infinite;
   }
 }
 

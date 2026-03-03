@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { VisualPanel } from './VisualPanel';
 import { AnimationPlayer } from './AnimationPlayer';
 import type { AnimationData } from '@/lib/ai/animation';
-import { Check, ChevronDown, ChevronUp, Copy, BookOpen, ExternalLink, Shield, AlertCircle, Image as ImageIcon, Volume2, Loader2, Play } from 'lucide-react';
+import { Check, ChevronDown, ChevronUp, Copy, BookOpen, ExternalLink, Shield, AlertCircle, Image as ImageIcon, Volume2, Loader2, Play, Code } from 'lucide-react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { CodePlayground } from './CodePlayground';
@@ -14,10 +14,8 @@ import { CodePlayground } from './CodePlayground';
 interface ResultDisplayProps {
     content: string;
     theme: 'light' | 'dark';
-    // When provided and viewMode === 'translated', these override the parsed sections.
-    translatedSections?: { mentalModel: string; takeaways: string };
-    viewMode?: 'source' | 'translated';
     animationData?: AnimationData;
+    isLoadingAnimation?: boolean;
     language?: string;
 }
 
@@ -62,9 +60,15 @@ function renderCitations(text: string, sources: Source[]): React.ReactNode[] {
 
 function TTSButton({ text, language = 'en' }: { text: string; language?: string }) {
     const [isPlaying, setIsPlaying] = useState(false);
+    const [hasError, setHasError] = useState(false);
+
+    // Only show TTS for English — Polly Indian language voices are unreliable
+    if (language !== 'en') return null;
+
     const handleSpeak = async () => {
         if (isPlaying || !text) return;
         setIsPlaying(true);
+        setHasError(false);
         try {
             const res = await fetch('/api/tts', {
                 method: 'POST',
@@ -80,12 +84,42 @@ function TTSButton({ text, language = 'en' }: { text: string; language?: string 
             await audio.play();
         } catch {
             setIsPlaying(false);
+            setHasError(true);
+            setTimeout(() => setHasError(false), 2000);
         }
     };
     return (
-        <button onClick={handleSpeak} disabled={isPlaying} className="p-1 text-muted-foreground hover:text-primary transition-colors" title="Listen">
+        <span
+            role="button"
+            tabIndex={0}
+            onClick={(e) => { e.stopPropagation(); handleSpeak(); }}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleSpeak(); }}
+            className={`p-1 cursor-pointer transition-colors ${hasError ? 'text-red-500' : 'text-muted-foreground hover:text-primary'}`}
+            title={hasError ? 'TTS failed' : 'Listen'}
+        >
             {isPlaying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Volume2 className="w-3.5 h-3.5" />}
-        </button>
+        </span>
+    );
+}
+
+function CopyButton({ text }: { text: string }) {
+    const [copied, setCopied] = useState(false);
+    const handleCopy = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+    };
+    return (
+        <span
+            role="button"
+            tabIndex={0}
+            onClick={handleCopy}
+            className="p-1 cursor-pointer text-muted-foreground hover:text-primary transition-colors"
+            title="Copy"
+        >
+            {copied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+        </span>
     );
 }
 
@@ -94,9 +128,9 @@ function InteractiveCodeBlock({ language, code, theme, isRunnable, restProps }: 
 }) {
     const [interactive, setInteractive] = useState(false);
     return (
-        <div className="relative group my-6 rounded-lg overflow-hidden border border-border/50 shadow-sm not-prose">
-            <div className="flex items-center justify-between px-4 py-2 bg-muted/80 backdrop-blur border-b border-border/50">
-                <span className="text-sm font-mono text-muted-foreground font-semibold">{language}</span>
+        <div className="relative group my-3 rounded-lg overflow-hidden border border-border/50 border-l-[3px] border-l-primary/40 shadow-sm not-prose">
+            <div className="flex items-center justify-between px-3 py-1.5 bg-muted/80 backdrop-blur border-b border-border/50">
+                <span className="text-xs font-mono text-muted-foreground font-semibold">{language}</span>
                 <div className="flex items-center gap-2">
                     {isRunnable && (
                         <button
@@ -122,10 +156,12 @@ function InteractiveCodeBlock({ language, code, theme, isRunnable, restProps }: 
                     style={theme === 'dark' ? oneDark : oneLight}
                     language={language}
                     PreTag="div"
+                    showLineNumbers
+                    lineNumberStyle={{ color: theme === 'dark' ? '#3f3f46' : '#d4d4d8', fontSize: '0.7rem', minWidth: '2em', paddingRight: '0.75em' }}
                     customStyle={{
                         margin: 0, borderRadius: 0,
                         background: theme === 'dark' ? '#09090b' : '#fafafa',
-                        fontSize: '1rem', lineHeight: '1.6', padding: '1.5rem'
+                        fontSize: '0.8125rem', lineHeight: '1.5', padding: '1rem'
                     }}
                 >
                     {code}
@@ -135,214 +171,274 @@ function InteractiveCodeBlock({ language, code, theme, isRunnable, restProps }: 
     );
 }
 
-export function ResultDisplay({ content, theme, translatedSections, viewMode = 'source', animationData, language }: ResultDisplayProps) {
+export function ResultDisplay({ content, theme, animationData, isLoadingAnimation, language }: ResultDisplayProps) {
     const { sections, sources } = parseSections(content);
     const [activeTab, setActiveTab] = useState<'explanation' | 'example'>('explanation');
-    const [isTakeawaysExpanded, setIsTakeawaysExpanded] = useState(false);
+    const [isTakeawaysExpanded, setIsTakeawaysExpanded] = useState(true);
     const [areSourcesExpanded, setAreSourcesExpanded] = useState(false);
-
-    // Choose source or translated content for overrideable sections
-    const showTranslated = viewMode === 'translated' && !!translatedSections;
-    const displayedMentalModel = showTranslated
-        ? (translatedSections?.mentalModel || sections.mentalModel)
-        : sections.mentalModel;
-    const displayedTakeaways = showTranslated
-        ? (translatedSections?.takeaways || sections.takeaways)
-        : sections.takeaways;
 
     return (
         <motion.div
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="w-full h-full flex flex-col gap-3 sm:gap-4 mt-4 sm:mt-6 max-h-[85vh] sm:max-h-[80vh]"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="w-full mx-auto space-y-2 px-2 sm:px-0"
         >
-            {/* 1. MENTAL MODEL (Sticky Top) */}
-            <div className="w-full bg-primary/5 border border-primary/10 p-3 sm:p-5 rounded-xl flex items-center gap-3 sm:gap-4 shadow-sm backdrop-blur-md">
-                <div className="bg-background p-1.5 sm:p-2 rounded-lg shadow-sm border border-border/50">
-                    <span className="text-lg sm:text-xl">🧠</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                        <h3 className="text-[10px] sm:text-xs font-bold text-primary/60 uppercase tracking-widest font-sans">Mental Model</h3>
-                        <TTSButton text={displayedMentalModel} language={language || 'en'} />
-                        {showTranslated && (
-                            <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary rounded font-medium">
-                                Translated
-                            </span>
-                        )}
+            {/* 1. MENTAL MODEL - Compact Hero Card */}
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="relative overflow-hidden rounded-xl border border-primary/20 bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-3 shadow-lg"
+            >
+                <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-3xl" />
+                <div className="relative flex items-start gap-3">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center border border-primary/20">
+                        <span className="text-lg">🧠</span>
                     </div>
-                    <p className="text-foreground font-serif text-lg sm:text-2xl leading-snug">
-                        {displayedMentalModel || "Thinking..."}
-                    </p>
-                </div>
-            </div>
-
-            <div className="flex-1 flex flex-col lg:flex-row gap-3 sm:gap-4 min-h-0 overflow-hidden">
-
-                {/* 2. LEFT PANE: Explanation & Content (Scrollable) */}
-                <div className="flex-1 flex flex-col glass-card rounded-xl overflow-hidden min-h-[300px] lg:min-h-0">
-                    <div className="flex border-b border-border/50">
-                        <button
-                            onClick={() => setActiveTab('explanation')}
-                            className={`flex-1 py-2 sm:py-3 text-xs sm:text-sm font-medium transition-colors ${activeTab === 'explanation' ? 'bg-muted/50 text-foreground border-b-2 border-primary' : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'}`}
-                        >
-                            Explanation
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('example')}
-                            className={`flex-1 py-2 sm:py-3 text-xs sm:text-sm font-medium transition-colors ${activeTab === 'example' ? 'bg-muted/50 text-foreground border-b-2 border-primary' : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'}`}
-                        >
-                            Example
-                        </button>
-                    </div>
-
-                    <div className="flex-1 overflow-y-auto p-4 sm:p-6 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
-                        <AnimatePresence mode="wait">
-                            {activeTab === 'explanation' ? (
-                                <motion.div
-                                    key="explanation"
-                                    initial={{ opacity: 0, x: -10 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    exit={{ opacity: 0, x: 10 }}
-                                    className="prose prose-lg md:prose-xl prose-slate dark:prose-invert max-w-none prose-p:leading-relaxed prose-headings:font-semibold prose-a:text-primary font-sans"
-                                >
-                                    <ReactMarkdown
-                                        components={sources.length > 0 ? {
-                                            p({ children }) {
-                                                const text = typeof children === 'string' ? children : '';
-                                                if (text && /\[\d+\]/.test(text)) {
-                                                    return <p>{renderCitations(text, sources)}</p>;
-                                                }
-                                                return <p>{children}</p>;
-                                            },
-                                            li({ children }) {
-                                                const text = typeof children === 'string' ? children : '';
-                                                if (text && /\[\d+\]/.test(text)) {
-                                                    return <li>{renderCitations(text, sources)}</li>;
-                                                }
-                                                return <li>{children}</li>;
-                                            },
-                                        } : undefined}
-                                    >
-                                        {sections.explanation}
-                                    </ReactMarkdown>
-                                </motion.div>
-                            ) : (
-                                <motion.div
-                                    key="example"
-                                    initial={{ opacity: 0, x: 10 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    exit={{ opacity: 0, x: -10 }}
-                                    className="prose prose-lg md:prose-xl prose-slate dark:prose-invert max-w-none"
-                                >
-                                    <ReactMarkdown
-                                        components={{
-                                            code({ node, className, children, ...props }) {
-                                                const match = /language-(\w+)/.exec(className || '')
-                                                const { ref, ...rest } = props;
-                                                const codeString = String(children).replace(/\n$/, '');
-                                                const isRunnable = match && ['javascript', 'js', 'typescript', 'ts', 'jsx', 'tsx'].includes(match[1].toLowerCase());
-                                                return match ? (
-                                                    <InteractiveCodeBlock
-                                                        language={match[1]}
-                                                        code={codeString}
-                                                        theme={theme}
-                                                        isRunnable={!!isRunnable}
-                                                        restProps={rest}
-                                                    />
-                                                ) : (
-                                                    <code className="bg-muted px-1.5 py-0.5 rounded font-mono text-sm text-foreground" {...props}>
-                                                        {children}
-                                                    </code>
-                                                )
-                                            }
-                                        }}
-                                    >
-                                        {sections.example}
-                                    </ReactMarkdown>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    </div>
-                </div>
-
-                {/* 3. RIGHT PANE: Visual Context (Animation or Images) */}
-                {animationData ? (
-                    <div className="flex-1 min-w-0 min-h-[300px] lg:min-h-0">
-                        <AnimationPlayer data={animationData} />
-                    </div>
-                ) : (
-                    <VisualPanel imageKeywords={sections.imageKeywords} />
-                )}
-
-            </div>
-
-            {/* 4. BOTTOM: Key Takeaways (Collapsible) */}
-            <div className="w-full bg-card border border-border rounded-xl overflow-hidden shadow-sm transition-all duration-300">
-                <div
-                    onClick={() => setIsTakeawaysExpanded(!isTakeawaysExpanded)}
-                    className="w-full flex items-center justify-between p-4 hover:bg-muted/50 transition-colors cursor-pointer"
-                    role="button"
-                    tabIndex={0}
-                >
-                    <div className="flex items-center gap-3">
-                        <div className="bg-primary/10 p-1.5 rounded-full">
-                            <Check className="w-4 h-4 text-primary" />
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 mb-1">
+                            <h3 className="text-[10px] font-bold text-primary uppercase tracking-wider">Mental Model</h3>
+                            <TTSButton text={sections.mentalModel} language={language || 'en'} />
+                            <CopyButton text={sections.mentalModel} />
                         </div>
-                        <span className="font-semibold text-foreground">Key Takeaways</span>
-                        <TTSButton text={displayedTakeaways} language={language || 'en'} />
-                        {showTranslated && (
-                            <span className="text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary rounded font-medium">
-                                Translated
-                            </span>
-                        )}
-                        <span className="text-xs text-muted-foreground font-mono bg-muted px-2 py-0.5 rounded-full border border-border/50">
-                            {isTakeawaysExpanded ? 'Hide' : 'Show'}
-                        </span>
+                        <p className="text-foreground text-sm font-medium leading-relaxed">
+                            {sections.mentalModel || "Understanding the concept..."}
+                        </p>
                     </div>
-                    {isTakeawaysExpanded ? <ChevronUp className="text-muted-foreground" /> : <ChevronDown className="text-muted-foreground" />}
+                </div>
+            </motion.div>
+
+            {/* 2. MAIN CONTENT - Two Column on Desktop */}
+            <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="grid grid-cols-1 lg:grid-cols-2 gap-2"
+            >
+                {/* Left: Explanation with Tabs */}
+                <div className="bg-card border border-border/50 rounded-xl overflow-hidden shadow-sm">
+                    {/* Tab Bar */}
+                    {sections.example && (
+                        <div className="flex border-b border-border/50">
+                            <button
+                                onClick={() => setActiveTab('explanation')}
+                                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold transition-colors ${activeTab === 'explanation' ? 'text-foreground border-b-2 border-primary bg-muted/20' : 'text-muted-foreground hover:text-foreground hover:bg-muted/10'}`}
+                            >
+                                <BookOpen className="w-3.5 h-3.5" /> Explanation
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('example')}
+                                className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold transition-colors ${activeTab === 'example' ? 'text-foreground border-b-2 border-primary bg-muted/20' : 'text-muted-foreground hover:text-foreground hover:bg-muted/10'}`}
+                            >
+                                <Code className="w-3.5 h-3.5" /> Example
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Tab Content */}
+                    {(activeTab === 'explanation' || !sections.example) && (
+                        <div className="p-3">
+                            <div className="prose prose-sm prose-slate dark:prose-invert max-w-none prose-p:leading-relaxed prose-headings:font-semibold prose-a:text-primary prose-strong:text-foreground prose-code:text-primary prose-code:bg-primary/10 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none">
+                                <ReactMarkdown
+                                    components={{
+                                        p({ children }) {
+                                            const text = typeof children === 'string' ? children : '';
+                                            if (text && /\[\d+\]/.test(text)) {
+                                                return <p>{renderCitations(text, sources)}</p>;
+                                            }
+                                            return <p>{children}</p>;
+                                        },
+                                        li({ children }) {
+                                            const text = typeof children === 'string' ? children : '';
+                                            if (text && /\[\d+\]/.test(text)) {
+                                                return <li>{renderCitations(text, sources)}</li>;
+                                            }
+                                            return <li>{children}</li>;
+                                        },
+                                        code({ node, className, children, ...props }) {
+                                            const match = /language-(\w+)/.exec(className || '')
+                                            const { ref, ...rest } = props;
+                                            const codeString = String(children).replace(/\n$/, '');
+                                            const isRunnable = match && ['javascript', 'js', 'typescript', 'ts', 'jsx', 'tsx'].includes(match[1].toLowerCase());
+                                            return match ? (
+                                                <InteractiveCodeBlock
+                                                    language={match[1]}
+                                                    code={codeString}
+                                                    theme={theme}
+                                                    isRunnable={!!isRunnable}
+                                                    restProps={rest}
+                                                />
+                                            ) : (
+                                                <code className="bg-muted px-1.5 py-0.5 rounded font-mono text-sm text-foreground" {...props}>
+                                                    {children}
+                                                </code>
+                                            )
+                                        }
+                                    }}
+                                >
+                                    {sections.explanation}
+                                </ReactMarkdown>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'example' && sections.example && (
+                        <div className="p-3">
+                            <div className="prose prose-sm prose-slate dark:prose-invert max-w-none">
+                                <ReactMarkdown
+                                    components={{
+                                        code({ node, className, children, ...props }) {
+                                            const match = /language-(\w+)/.exec(className || '')
+                                            const { ref, ...rest } = props;
+                                            const codeString = String(children).replace(/\n$/, '');
+                                            const isRunnable = match && ['javascript', 'js', 'typescript', 'ts', 'jsx', 'tsx'].includes(match[1].toLowerCase());
+                                            return match ? (
+                                                <InteractiveCodeBlock
+                                                    language={match[1]}
+                                                    code={codeString}
+                                                    theme={theme}
+                                                    isRunnable={!!isRunnable}
+                                                    restProps={rest}
+                                                />
+                                            ) : (
+                                                <code className="bg-muted px-1.5 py-0.5 rounded font-mono text-sm text-foreground" {...props}>
+                                                    {children}
+                                                </code>
+                                            )
+                                        }
+                                    }}
+                                >
+                                    {sections.example}
+                                </ReactMarkdown>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
-                <AnimatePresence>
-                    {isTakeawaysExpanded && (
+                {/* Right: Visual + Takeaways */}
+                <div className="space-y-2">
+                    {/* Visual Context */}
+                    {animationData && (
                         <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: 'auto', opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            className="border-t border-border/50 bg-muted/20"
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.3 }}
                         >
-                            <div className="p-4 pt-2">
-                                <div className="prose prose-sm md:prose-base prose-slate dark:prose-invert max-w-none prose-li:text-foreground/80 prose-li:marker:text-primary">
-                                    <ReactMarkdown>
-                                        {displayedTakeaways}
-                                    </ReactMarkdown>
+                            <AnimationPlayer data={animationData} />
+                        </motion.div>
+                    )}
+                    {!animationData && isLoadingAnimation && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.3 }}
+                            className="flex flex-col h-full bg-card rounded-xl border border-border overflow-hidden"
+                        >
+                            {/* Header skeleton - matches AnimationPlayer header */}
+                            <div className="p-4 border-b border-border bg-muted/20">
+                                <div className="h-4 bg-muted/60 rounded animate-pulse w-2/3 mb-2" />
+                                <div className="h-3 bg-muted/40 rounded animate-pulse w-full" />
+                            </div>
+                            {/* Canvas skeleton - matches SVG viewBox 800x400 (2:1 ratio) */}
+                            <div className="relative bg-background/50 flex items-center justify-center" style={{ aspectRatio: '2 / 1' }}>
+                                <div className="flex flex-col items-center gap-2">
+                                    <Loader2 className="w-6 h-6 animate-spin text-primary/50" />
+                                    <span className="text-xs text-muted-foreground">Generating animation...</span>
+                                </div>
+                            </div>
+                            {/* Controls skeleton - matches AnimationPlayer controls */}
+                            <div className="p-4 border-t border-border bg-muted/20">
+                                <div className="flex items-center justify-between gap-4">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-8 h-8 bg-muted/50 rounded-lg animate-pulse" />
+                                        <div className="w-8 h-8 bg-primary/20 rounded-lg animate-pulse" />
+                                        <div className="w-8 h-8 bg-muted/50 rounded-lg animate-pulse" />
+                                        <div className="w-8 h-8 bg-muted/50 rounded-lg animate-pulse" />
+                                    </div>
+                                    <div className="flex-1 h-2 bg-muted rounded-full" />
+                                    <div className="w-12 h-6 bg-muted/50 rounded animate-pulse" />
                                 </div>
                             </div>
                         </motion.div>
                     )}
-                </AnimatePresence>
-            </div>
+                    {!animationData && !isLoadingAnimation && sections.imageKeywords.length > 0 && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.3 }}
+                        >
+                            <VisualPanel imageKeywords={sections.imageKeywords} />
+                        </motion.div>
+                    )}
 
-            {/* 5. SOURCES (Research mode only — collapsible) */}
-            {sources.length > 0 && (
-                <div className="w-full bg-card border border-border rounded-xl overflow-hidden shadow-sm">
-                    <div
-                        onClick={() => setAreSourcesExpanded(!areSourcesExpanded)}
-                        className="w-full flex items-center justify-between p-4 hover:bg-muted/50 transition-colors cursor-pointer"
-                        role="button"
-                        tabIndex={0}
-                    >
-                        <div className="flex items-center gap-3">
-                            <div className="bg-blue-500/10 p-1.5 rounded-full">
-                                <BookOpen className="w-4 h-4 text-blue-500" />
+                    {/* Key Takeaways - Compact */}
+                    {sections.takeaways && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.4 }}
+                            className="bg-card border border-border/50 rounded-xl overflow-hidden shadow-sm"
+                        >
+                            <div className="flex items-center justify-between p-3 hover:bg-muted/30 transition-colors cursor-pointer"
+                                onClick={() => setIsTakeawaysExpanded(!isTakeawaysExpanded)}
+                            >
+                                <div className="flex items-center gap-2">
+                                    <div className="w-6 h-6 rounded-lg bg-green-500/10 flex items-center justify-center">
+                                        <Check className="w-3 h-3 text-green-600 dark:text-green-400" />
+                                    </div>
+                                    <span className="font-semibold text-foreground text-sm">Key Takeaways</span>
+                                    <TTSButton text={sections.takeaways} language={language || 'en'} />
+                                    <CopyButton text={sections.takeaways} />
+                                </div>
+                                {isTakeawaysExpanded ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
                             </div>
-                            <span className="font-semibold text-foreground">Sources</span>
-                            <span className="text-xs text-muted-foreground font-mono bg-muted px-2 py-0.5 rounded-full border border-border/50">
+
+                            <AnimatePresence>
+                                {isTakeawaysExpanded && (
+                                    <motion.div
+                                        initial={{ height: 0, opacity: 0 }}
+                                        animate={{ height: 'auto', opacity: 1 }}
+                                        exit={{ height: 0, opacity: 0 }}
+                                        className="border-t border-border/50"
+                                    >
+                                        <div className="p-3 bg-muted/10">
+                                            <div className="prose prose-sm prose-slate dark:prose-invert max-w-none prose-li:text-foreground prose-li:marker:text-primary">
+                                                <ReactMarkdown>
+                                                    {sections.takeaways}
+                                                </ReactMarkdown>
+                                            </div>
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </motion.div>
+                    )}
+                </div>
+            </motion.div>
+
+            {/* 3. SOURCES - Research mode */}
+            {sources.length > 0 && (
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.5 }}
+                    className="bg-card border border-border/50 rounded-xl overflow-hidden shadow-sm"
+                >
+                    <button
+                        onClick={() => setAreSourcesExpanded(!areSourcesExpanded)}
+                        className="w-full flex items-center justify-between p-3 hover:bg-muted/30 transition-colors"
+                    >
+                        <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                                <BookOpen className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                            </div>
+                            <span className="font-semibold text-foreground text-sm">Sources</span>
+                            <span className="text-xs px-2 py-0.5 bg-muted rounded-full text-muted-foreground font-medium">
                                 {sources.length}
                             </span>
                         </div>
-                        {areSourcesExpanded ? <ChevronUp className="text-muted-foreground" /> : <ChevronDown className="text-muted-foreground" />}
-                    </div>
+                        {areSourcesExpanded ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+                    </button>
 
                     <AnimatePresence>
                         {areSourcesExpanded && (
@@ -352,30 +448,30 @@ export function ResultDisplay({ content, theme, translatedSections, viewMode = '
                                 exit={{ height: 0, opacity: 0 }}
                                 className="border-t border-border/50"
                             >
-                                <div className="p-4 space-y-3">
+                                <div className="p-3 space-y-2 bg-muted/10">
                                     {sources.map((source, i) => {
                                         const cfg = CREDIBILITY_CONFIG[source.credibility];
                                         const Icon = cfg.icon;
                                         return (
-                                            <div key={i} className="flex items-start gap-3 p-3 rounded-lg bg-muted/30 border border-border/30 hover:bg-muted/50 transition-colors">
-                                                <Icon className={`w-4 h-4 mt-0.5 flex-shrink-0 ${cfg.color}`} />
+                                            <div key={i} className="flex items-start gap-2 p-2.5 rounded-lg bg-background border border-border/50 hover:border-primary/30 transition-colors">
+                                                <Icon className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${cfg.color}`} />
                                                 <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                    <div className="flex items-center gap-2 flex-wrap mb-0.5">
                                                         <a
                                                             href={source.url}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
-                                                            className="font-medium text-sm text-foreground hover:text-primary transition-colors flex items-center gap-1"
+                                                            className="font-medium text-xs text-foreground hover:text-primary transition-colors flex items-center gap-1"
                                                         >
                                                             {source.title}
                                                             <ExternalLink className="w-3 h-3 opacity-50" />
                                                         </a>
-                                                        <span className={`text-[10px] font-semibold uppercase tracking-wider ${cfg.color}`}>
+                                                        <span className={`text-[9px] font-bold uppercase tracking-wider ${cfg.color}`}>
                                                             {cfg.label}
                                                         </span>
                                                     </div>
                                                     {source.summary && (
-                                                        <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed line-clamp-2">
+                                                        <p className="text-[11px] text-muted-foreground leading-relaxed">
                                                             {source.summary}
                                                         </p>
                                                     )}
@@ -387,7 +483,7 @@ export function ResultDisplay({ content, theme, translatedSections, viewMode = '
                             </motion.div>
                         )}
                     </AnimatePresence>
-                </div>
+                </motion.div>
             )}
 
         </motion.div>
@@ -452,18 +548,37 @@ function parseSections(markdown: string): { sections: any; sources: Source[] } {
         const part = parts[i];
         const lowerPart = part.toLowerCase();
 
-        if (lowerPart.includes('mental model')) {
-            let content = part.replace(/mental model/i, '').trim().replace(/^\n+/, '');
+        // Mental Model - support multiple languages
+        if (lowerPart.includes('mental model') || lowerPart.includes('মানসিক মডেল') || lowerPart.includes('मानसिक मॉडल')) {
+            let content = part
+                .replace(/the\s+mental\s+model/i, '')
+                .replace(/mental\s+model/i, '')
+                .replace(/মানসিক মডেল/i, '')
+                .replace(/मानसिक मॉडल/i, '')
+                .trim()
+                .replace(/^\n+/, '');
+
+            // Extract first meaningful paragraph
             const paragraphMatch = content.match(/^([^\n]+(?:\n(?!\n)[^\n]+)*)/);
             if (paragraphMatch) {
                 sections.mentalModel = paragraphMatch[1].trim();
             } else {
-                sections.mentalModel = content.split('\n')[0] || "Understanding the concept";
+                const firstLine = content.split('\n')[0];
+                sections.mentalModel = firstLine || "Understanding the concept";
             }
             console.log('[Parser] Mental model:', sections.mentalModel);
-        } else if (lowerPart.includes('explanation')) {
-            sections.explanation = part.replace(/the explanation/i, '').replace(/explanation/i, '').trim();
-        } else if (lowerPart.includes('visual context') || lowerPart.includes('visual diagram') || lowerPart.includes('diagram')) {
+        }
+        // Explanation - support multiple languages
+        else if (lowerPart.includes('explanation') || lowerPart.includes('ব্যাখ্যা') || lowerPart.includes('व्याख्या')) {
+            sections.explanation = part
+                .replace(/the explanation/i, '')
+                .replace(/explanation/i, '')
+                .replace(/ব্যাখ্যা/i, '')
+                .replace(/व्याख्या/i, '')
+                .trim();
+        }
+        // Visual/Diagram
+        else if (lowerPart.includes('visual context') || lowerPart.includes('visual diagram') || lowerPart.includes('diagram')) {
             const rawVisual = part.replace(/visual context/i, '').replace(/visual diagram/i, '').trim();
 
             // Extract visual type marker
@@ -484,11 +599,27 @@ function parseSections(markdown: string): { sections: any; sources: Source[] } {
             if (match) {
                 sections.diagram = match[1].trim();
             }
-        } else if (lowerPart.includes('example')) {
-            sections.example = part.replace(/concrete example/i, '').replace(/example/i, '').trim();
-        } else if (lowerPart.includes('takeaway') || lowerPart.includes('key points')) {
-            sections.takeaways = part.replace(/key takeaways/i, '').replace(/key points/i, '').trim();
-        } else if (lowerPart.includes('summary') && !sections.explanation) {
+        }
+        // Example - support multiple languages
+        else if (lowerPart.includes('example') || lowerPart.includes('উদাহরণ') || lowerPart.includes('उदाहरण')) {
+            sections.example = part
+                .replace(/concrete example/i, '')
+                .replace(/example/i, '')
+                .replace(/উদাহরণ/i, '')
+                .replace(/उदाहरण/i, '')
+                .trim();
+        }
+        // Takeaways - support multiple languages
+        else if (lowerPart.includes('takeaway') || lowerPart.includes('key points') || lowerPart.includes('মূল বিষয়') || lowerPart.includes('मुख्य बातें')) {
+            sections.takeaways = part
+                .replace(/key takeaways/i, '')
+                .replace(/key points/i, '')
+                .replace(/takeaways/i, '')
+                .replace(/মূল বিষয়/i, '')
+                .replace(/मुख्य बातें/i, '')
+                .trim();
+        }
+        else if (lowerPart.includes('summary') && !sections.explanation) {
             sections.explanation = part.replace(/summary/i, '').trim();
         }
     }

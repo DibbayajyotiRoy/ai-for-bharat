@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, ArrowRight, Loader2, X, Clipboard, Brain, Globe, History, ImagePlus, Route, BookOpen, Code, Rocket, Hammer } from 'lucide-react';
+import { Sparkles, ArrowRight, Loader2, X, Clipboard, Brain, Globe, History, ImagePlus, Route, BookOpen, Code, Rocket, Hammer, FileText, Search } from 'lucide-react';
 import { ResultDisplay } from '@/components/copilot/ResultDisplay';
 import { QuizDisplay } from '@/components/copilot/QuizDisplay';
 import { ChatHistory } from '@/components/copilot/ChatHistory';
@@ -11,6 +11,7 @@ import { UserMenu } from '@/components/copilot/UserMenu';
 import { ProfilePrompt } from '@/components/copilot/ProfilePrompt';
 import { CreateProfileButton } from '@/components/copilot/CreateProfileButton';
 import { ImageViewer } from '@/components/copilot/ImageViewer';
+import { ImprovedSkeleton } from '@/components/copilot/ImprovedSkeleton';
 import type { QuizData } from '@/lib/ai/quiz';
 import { LANGUAGE_NAMES, LANGUAGE_SHORT, type SupportedLanguage } from '@/lib/ai/translation';
 import { shouldUseAnimation } from '@/lib/ai/animation';
@@ -37,17 +38,16 @@ const STEP_TYPE_ICONS: Record<string, typeof BookOpen> = {
 
 export default function Home() {
   const [input, setInput] = useState('');
+  const [lastQuery, setLastQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState('');
   const [level, setLevel] = useState<'Beginner' | 'Intermediate' | 'Advanced'>('Beginner');
   const [mode, setMode] = useState<'normal' | 'agent'>('normal');
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [detectedLang, setDetectedLang] = useState<string | null>(null);
 
   // Multilingual state
   const [language, setLanguage] = useState<SupportedLanguage>('en');
-  const [viewMode, setViewMode] = useState<'source' | 'translated'>('source');
-  const [translatedSections, setTranslatedSections] = useState<{ mentalModel: string; takeaways: string } | null>(null);
-  const [isTranslating, setIsTranslating] = useState(false);
 
   // Quiz state
   const [showQuiz, setShowQuiz] = useState(false);
@@ -208,41 +208,6 @@ export default function Home() {
     reader.readAsDataURL(file);
   };
 
-  // ── Translation ───────────────────────────────────────────────────────────
-  const handleTranslate = useCallback(async (content: string, lang: SupportedLanguage) => {
-    if (lang === 'en' || !content) return;
-    setIsTranslating(true);
-    try {
-      const res = await fetch('/api/translate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content, targetLanguage: lang }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      setTranslatedSections(data.translated);
-      setViewMode('translated');
-    } catch (err) {
-      console.error('[Translate] Failed:', err);
-    } finally {
-      setIsTranslating(false);
-    }
-  }, []);
-
-  // Auto-translate when language changes after result is ready
-  useEffect(() => {
-    if (language === 'en') {
-      setTranslatedSections(null);
-      setViewMode('source');
-      return;
-    }
-    if (!result || isLoading) return;
-    handleTranslate(result, language);
-    // handleTranslate is stable (useCallback); intentionally excluding result/isLoading
-    // to avoid re-translating on every streamed chunk — we translate once on language change.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [language]);
-
   // ── Quiz ──────────────────────────────────────────────────────────────────
   const handleGenerateQuiz = async () => {
     if (!result) return;
@@ -269,17 +234,20 @@ export default function Home() {
   // ── Explain ───────────────────────────────────────────────────────────────
   const handleExplain = async () => {
     if (!input.trim() && !uploadedImage) return;
+    const submittedQuery = input.trim();
+    setLastQuery(submittedQuery);
+    setInput('');
     setIsLoading(true);
     setResult('');
     // Reset derivative state for each new query
-    setTranslatedSections(null);
-    setViewMode('source');
     setShowQuiz(false);
     setQuizData(null);
     setAnimationData(null);
     setFollowUpQuestions([]);
     setLearningPath(null);
     setShowLearningPath(false);
+    // Scroll results area to top
+    scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
 
     try {
       // Image mode: use multimodal endpoint
@@ -290,7 +258,7 @@ export default function Home() {
           body: JSON.stringify({
             imageBase64: uploadedImage.base64,
             mimeType: uploadedImage.mimeType,
-            query: input || undefined,
+            query: submittedQuery || undefined,
             level,
           }),
         });
@@ -300,20 +268,22 @@ export default function Home() {
         const fullResult = data.explanation;
         setResult(fullResult);
 
-        if (language !== 'en' && fullResult) {
-          handleTranslate(fullResult, language);
-        }
-
         // Fetch follow-up questions in background
-        fetchFollowUpQuestions(input || 'this image', fullResult);
+        fetchFollowUpQuestions(submittedQuery || 'this image', fullResult);
 
         setUploadedImage(null);
       } else {
-        // Text mode: stream explanation
+        // Text mode: stream explanation with language support
         const response = await fetch('/api/explain', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content: input, level, mode, userId: currentUser?.id || 'anonymous' }),
+          body: JSON.stringify({
+            content: submittedQuery,
+            level,
+            mode,
+            userId: currentUser?.id || 'anonymous',
+            language // Pass language to API for direct translation
+          }),
         });
 
         if (!response.body) throw new Error('No response body');
@@ -331,17 +301,12 @@ export default function Home() {
           setResult(fullResult);
         }
 
-        // If a non-English language is already selected, translate after streaming ends
-        if (language !== 'en' && fullResult) {
-          handleTranslate(fullResult, language);
-        }
-
         // Fetch follow-up questions in background
-        fetchFollowUpQuestions(input, fullResult);
+        fetchFollowUpQuestions(submittedQuery, fullResult);
 
         // Check if we should generate animation
-        if (shouldUseAnimation(input)) {
-          generateAnimationForQuery(input);
+        if (shouldUseAnimation(submittedQuery)) {
+          generateAnimationForQuery(submittedQuery);
         }
       }
 
@@ -411,7 +376,8 @@ export default function Home() {
 
   // ── Learning Path ─────────────────────────────────────────────────────
   const handleGenerateLearningPath = async () => {
-    if (!input.trim()) return;
+    const topic = lastQuery || input.trim();
+    if (!topic) return;
     setIsLoadingPath(true);
     setShowLearningPath(false);
     setLearningPath(null);
@@ -419,7 +385,7 @@ export default function Home() {
       const res = await fetch('/api/learning-path', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ topic: input, level }),
+        body: JSON.stringify({ topic, level }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
@@ -449,462 +415,512 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center p-2 sm:p-4 md:p-8 relative overflow-hidden bg-background text-foreground transition-colors duration-500 font-sans">
+    <main className="h-screen flex flex-col bg-background text-foreground transition-colors duration-500 font-sans">
 
-      {/* Subtle Background Glows */}
-      <div className="absolute top-0 left-0 w-full h-full pointer-events-none overflow-hidden opacity-40 dark:opacity-20">
-        <div className="absolute top-[-20%] right-[-10%] w-[800px] h-[800px] bg-primary/20 rounded-full blur-[120px]" />
-        <div className="absolute bottom-[-20%] left-[-10%] w-[600px] h-[600px] bg-secondary/30 rounded-full blur-[100px]" />
-      </div>
-
-      <div className={`z-10 w-full flex flex-col items-center transition-all duration-500 ${result ? 'max-w-full sm:max-w-[95vw] min-h-screen sm:h-[95vh] justify-start pt-4 sm:pt-8 pb-20 sm:pb-8' : 'max-w-4xl justify-center'}`}>
-
-        {/* Header — collapses when result is active */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{
-            opacity: result ? 0 : 1,
-            y: result ? -50 : 0,
-            height: result ? 0 : 'auto',
-            marginBottom: result ? 0 : 48
-          }}
-          className="text-center overflow-hidden"
-        >
-          <div className="inline-flex items-center justify-center px-4 py-1.5 mb-6 bg-muted/50 border border-border/50 rounded-full backdrop-blur-sm">
-            <Sparkles className="w-3.5 h-3.5 text-primary mr-2" />
-            <span className="text-xs font-semibold text-muted-foreground tracking-wide uppercase">Learning Copilot</span>
+      {/* Compact App Navbar */}
+      <nav className="sticky top-0 z-50 w-full border-b border-border/50 bg-card/80 backdrop-blur-xl shadow-sm">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2 flex items-center justify-between gap-2">
+          {/* Logo */}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-primary/10 rounded-lg">
+              <Sparkles className="w-3.5 h-3.5 text-primary" />
+              <span className="text-sm font-bold text-foreground">Learning Copilot</span>
+            </div>
           </div>
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-semibold text-foreground tracking-tight leading-tight mb-3 sm:mb-4 font-serif px-4">
-            Explain concepts.<br />Not yourself.
-          </h1>
-          <p className="text-muted-foreground text-base sm:text-lg max-w-lg mx-auto font-light px-4">
-            Paste code, text, or a concept. Get a structured explanation instantly.
-          </p>
 
-          {/* GitHub Star CTA */}
-          <motion.a
-            href="https://github.com/DibbayajyotiRoy/ai-for-bharat"
-            target="_blank"
-            rel="noopener noreferrer"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="inline-flex items-center gap-2 mt-4 sm:mt-6 px-3 sm:px-4 py-2 bg-gradient-to-r from-gray-800 to-gray-900 dark:from-gray-700 dark:to-gray-800 text-white rounded-full text-xs sm:text-sm font-medium hover:from-gray-700 hover:to-gray-800 dark:hover:from-gray-600 dark:hover:to-gray-700 transition-all shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 group"
-          >
-            <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
-            </svg>
-            <span className="hidden xs:inline">Star on GitHub</span>
-            <span className="xs:hidden">Star</span>
-            <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-            </svg>
-          </motion.a>
-
-          {/* Extensions and Bots Links */}
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="flex flex-wrap justify-center gap-3 mt-4 px-4"
-          >
-            <a href="https://github.com/DibbayajyotiRoy/ai-for-bharat/tree/main/vscode-extension" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-3 py-1.5 bg-card/60 backdrop-blur border border-border/50 rounded-full text-xs font-medium text-foreground hover:bg-muted/60 transition-colors shadow-sm cursor-pointer">
-              <Code className="w-3.5 h-3.5 text-blue-500" />
-              VS Code Extension
+          {/* Coming Soon Badges */}
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-1 justify-center overflow-x-auto scrollbar-hide">
+            <a
+              href="https://github.com/DibbayajyotiRoy/ai-for-bharat/tree/main/vscode-extension"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 px-2 py-1 bg-muted/30 rounded-md transition-colors cursor-not-allowed flex-shrink-0"
+            >
+              <Code className="w-3 h-3 text-blue-500" />
+              <span className="text-[10px] sm:text-xs font-medium text-muted-foreground hidden sm:inline">VS Code</span>
+              <span className="text-[9px] px-1 py-0.5 bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded font-semibold">SOON</span>
             </a>
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-card/60 backdrop-blur border border-border/50 rounded-full text-xs font-medium text-foreground shadow-sm cursor-pointer hover:bg-muted/60 transition-colors" onClick={() => alert("To use the Telegram bot, see scripts/setup-telegram.sh and start the bot.")}>
-              <svg className="w-3.5 h-3.5 text-[#0088cc]" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.19-.08-.05-.19-.02-.27 0-.12.03-1.98 1.26-5.46 3.6-.51.35-.97.52-1.38.51-.45-.01-1.31-.26-1.94-.47-.78-.26-1.4-.4-1.35-.85.03-.24.36-.48 1-.74 3.93-1.7 6.55-2.82 7.84-3.35 3.74-1.53 4.51-1.8 5.01-1.8.11 0 .35.03.48.14.11.09.14.22.15.34.01.1-.01.24-.03.4z" /></svg>
-              Telegram Bot
-            </div>
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-card/60 backdrop-blur border border-border/50 rounded-full text-xs font-medium text-foreground shadow-sm cursor-pointer hover:bg-muted/60 transition-colors" onClick={() => alert("To use the WhatsApp bot, see scripts/setup-whatsapp.sh and configure Twilio.")}>
-              <svg className="w-3.5 h-3.5 text-[#25D366]" fill="currentColor" viewBox="0 0 24 24"><path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.77-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.299.045-.677.063-1.092-.069-.252-.08-.575-.187-.988-.365-1.739-.751-2.874-2.502-2.961-2.617-.087-.116-.708-.94-.708-1.793 0-.853.448-1.273.607-1.446.159-.173.346-.217.462-.217l.332.006c.106.005.249-.04.39.298.144.347.491 1.2.534 1.287.043.087.072.188.014.304-.058.116-.087.188-.173.289l-.26.304c-.087.086-.177.18-.076.354.101.174.449.741.964 1.201.662.591 1.221.774 1.394.86s.274.072.376-.043c.101-.116.433-.506.549-.68.116-.173.231-.145.39-.087s1.011.477 1.184.564.289.13.332.202c.045.072.045.419-.098.824zM20.056 3.93C17.91 1.782 15.056.6 12.037.6 5.866.6.845 5.626.845 11.8c0 2.072.569 4.095 1.636 5.832l-2.071 7.425 7.643-1.956c1.696.953 3.655 1.458 5.989 1.458 6.173 0 11.206-5.029 11.209-11.209.001-3.003-1.168-5.83-3.195-7.42z" /></svg>
-              WhatsApp Bot
-            </div>
-          </motion.div>
-        </motion.div>
 
-        {/* Input Area */}
-        <motion.div layout className="w-full max-w-2xl relative group">
-          {/* Advanced Mode Glow */}
-          <div className={`absolute -inset-[1px] rounded-xl transition-opacity duration-500 ${level === 'Advanced' ? 'bg-gradient-to-r from-primary/30 to-accent/30 opacity-100' : 'opacity-0'} blur-sm`} />
-
-          <div className="relative glass-card rounded-xl p-1 shadow-2xl ring-1 ring-border/50">
-            <div className="relative">
-              <textarea
-                className="w-full h-32 sm:h-40 bg-card/50 text-foreground placeholder-muted-foreground/60 p-3 sm:p-5 resize-none focus:outline-none text-base sm:text-lg leading-relaxed font-sans glass-input rounded-lg selection:bg-primary/20"
-                placeholder={uploadedImage ? "Add a question about this image (optional)..." : "Paste 'Race Condition' or code, or drop a screenshot..."}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleExplain(); }}
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  const file = e.dataTransfer.files[0];
-                  if (file?.type.startsWith('image/')) handleImageUpload(file);
-                }}
-              />
-
-              {/* Quick Actions */}
-              <div className="absolute top-2 sm:top-3 right-2 sm:right-3 flex space-x-1">
-                {input && (
-                  <button onClick={() => setInput('')} className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-md transition-colors" title="Clear">
-                    <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                  </button>
-                )}
-                <button onClick={handlePaste} className="p-1.5 text-muted-foreground hover:text-primary hover:bg-muted/50 rounded-md transition-colors" title="Paste from Clipboard">
-                  <Clipboard className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                </button>
-                <label className="p-1.5 text-muted-foreground hover:text-primary hover:bg-muted/50 rounded-md transition-colors cursor-pointer" title="Upload Screenshot">
-                  <ImagePlus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => e.target.files?.[0] && handleImageUpload(e.target.files[0])}
-                  />
-                </label>
-              </div>
-
-              {/* Image Preview */}
-              {uploadedImage && (
-                <div
-                  className="absolute bottom-2 sm:bottom-3 left-2 sm:left-3 flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-lg px-2 py-1 cursor-pointer hover:bg-primary/20 transition-colors"
-                  onClick={() => setShowImageViewer(true)}
-                  title="Click to view full image"
-                >
-                  <img src={uploadedImage.preview} alt="Upload" className="w-8 h-8 rounded object-cover" />
-                  <span className="text-xs text-primary font-medium">Image attached</span>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setUploadedImage(null); setShowImageViewer(false); }}
-                    className="p-0.5 ml-1 text-primary/60 hover:text-primary rounded-full hover:bg-primary/10 transition-colors"
-                    title="Remove image"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>
-              )}
-
-              {/* Detected code language tag */}
-              {detectedLang && (
-                <div className="absolute bottom-2 sm:bottom-3 right-2 sm:right-3 text-xs font-medium text-primary bg-primary/10 px-2 py-1 rounded">
-                  {detectedLang}
-                </div>
-              )}
+            <div className="flex items-center gap-1 px-2 py-1 bg-muted/30 rounded-md cursor-not-allowed flex-shrink-0">
+              <svg className="w-3 h-3 text-[#0088cc]" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69.01-.03.01-.14-.07-.19-.08-.05-.19-.02-.27 0-.12.03-1.98 1.26-5.46 3.6-.51.35-.97.52-1.38.51-.45-.01-1.31-.26-1.94-.47-.78-.26-1.4-.4-1.35-.85.03-.24.36-.48 1-.74 3.93-1.7 6.55-2.82 7.84-3.35 3.74-1.53 4.51-1.8 5.01-1.8.11 0 .35.03.48.14.11.09.14.22.15.34.01.1-.01.24-.03.4z" /></svg>
+              <span className="text-[10px] sm:text-xs font-medium text-muted-foreground hidden sm:inline">Telegram</span>
+              <span className="text-[9px] px-1 py-0.5 bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded font-semibold">SOON</span>
             </div>
 
-            {/* Toolbar */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between px-2 pb-2 pt-3 border-t border-border/20 mt-1 gap-2">
-              <div className="flex flex-wrap gap-1.5 sm:gap-2">
-
-                {/* Skill Level */}
-                <div className="flex space-x-1 bg-muted/40 p-0.5 sm:p-1 rounded-lg border border-border/20">
-                  {(['Beginner', 'Intermediate', 'Advanced'] as const).map((lvl) => (
-                    <button
-                      key={lvl}
-                      onClick={() => setLevel(lvl)}
-                      className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-md text-[10px] sm:text-xs font-medium transition-all ${level === lvl ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'}`}
-                    >
-                      {lvl === 'Beginner' ? 'Begin' : lvl === 'Intermediate' ? 'Inter' : 'Adv'}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Mode Toggle */}
-                <div className="flex space-x-1 bg-muted/40 p-0.5 sm:p-1 rounded-lg border border-border/20">
-                  {(['normal', 'agent'] as const).map((m) => (
-                    <button
-                      key={m}
-                      onClick={() => setMode(m)}
-                      className={`px-2 sm:px-3 py-1 sm:py-1.5 rounded-md text-[10px] sm:text-xs font-medium transition-all ${mode === m ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'}`}
-                    >
-                      {m === 'normal' ? '📝' : '🔍'}
-                      <span className="hidden sm:inline ml-1">{m === 'normal' ? 'Normal' : 'Research'}</span>
-                    </button>
-                  ))}
-                </div>
-
-                {/* Language Selector */}
-                <div className="flex items-center gap-0.5 sm:gap-1 bg-muted/40 p-0.5 sm:p-1 rounded-lg border border-border/20">
-                  <Globe className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-muted-foreground ml-0.5 sm:ml-1 flex-shrink-0" />
-                  {SUPPORTED_LANGUAGES.map((lang) => (
-                    <button
-                      key={lang}
-                      onClick={() => setLanguage(lang)}
-                      title={LANGUAGE_NAMES[lang]}
-                      className={`px-1.5 sm:px-2.5 py-1 sm:py-1.5 rounded-md text-[10px] sm:text-xs font-medium transition-all ${language === lang ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'}`}
-                    >
-                      {LANGUAGE_SHORT[lang]}
-                    </button>
-                  ))}
-                </div>
-
-              </div>
-
-              {/* Explain Button */}
-              <button
-                onClick={handleExplain}
-                disabled={isLoading || (!input.trim() && !uploadedImage)}
-                className={`w-full sm:w-auto flex items-center justify-center px-4 sm:px-6 py-2.5 sm:py-2 rounded-lg font-semibold text-sm transition-all shadow-md ${isLoading || (!input.trim() && !uploadedImage) ? 'bg-muted text-muted-foreground cursor-not-allowed border border-border' : 'bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-lg active:scale-95'}`}
-              >
-                {isLoading ? (
-                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Thinking</>
-                ) : (
-                  <>Explain <ArrowRight className="w-4 h-4 ml-2" /></>
-                )}
-              </button>
+            <div className="flex items-center gap-1 px-2 py-1 bg-muted/30 rounded-md cursor-not-allowed flex-shrink-0">
+              <svg className="w-3 h-3 text-[#25D366]" fill="currentColor" viewBox="0 0 24 24"><path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.77-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.299.045-.677.063-1.092-.069-.252-.08-.575-.187-.988-.365-1.739-.751-2.874-2.502-2.961-2.617-.087-.116-.708-.94-.708-1.793 0-.853.448-1.273.607-1.446.159-.173.346-.217.462-.217l.332.006c.106.005.249-.04.39.298.144.347.491 1.2.534 1.287.043.087.072.188.014.304-.058.116-.087.188-.173.289l-.26.304c-.087.086-.177.18-.076.354.101.174.449.741.964 1.201.662.591 1.221.774 1.394.86s.274.072.376-.043c.101-.116.433-.506.549-.68.116-.173.231-.145.39-.087s1.011.477 1.184.564.289.13.332.202c.045.072.045.419-.098.824zM20.056 3.93C17.91 1.782 15.056.6 12.037.6 5.866.6.845 5.626.845 11.8c0 2.072.569 4.095 1.636 5.832l-2.071 7.425 7.643-1.956c1.696.953 3.655 1.458 5.989 1.458 6.173 0 11.206-5.029 11.209-11.209.001-3.003-1.168-5.83-3.195-7.42z" /></svg>
+              <span className="text-[10px] sm:text-xs font-medium text-muted-foreground hidden sm:inline">WhatsApp</span>
+              <span className="text-[9px] px-1 py-0.5 bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded font-semibold">SOON</span>
             </div>
           </div>
-        </motion.div>
 
-        {/* Sample Queries + Keyboard Hints (only when no result) */}
-        <AnimatePresence>
-          {!input && !result && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="mt-6 flex flex-col items-center gap-4"
+          {/* Right Controls */}
+          <div className="flex items-center gap-1 sm:gap-1.5">
+            {/* GitHub Star Button */}
+            <a
+              href="https://github.com/DibbayajyotiRoy/ai-for-bharat"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 bg-gradient-to-r from-gray-800 to-gray-900 dark:from-gray-700 dark:to-gray-800 text-white rounded-md text-xs font-medium hover:from-gray-700 hover:to-gray-800 transition-all shadow-sm hover:shadow-md hover:scale-105 active:scale-95"
             >
-              <div className="flex flex-wrap justify-center gap-2">
-                {SAMPLE_QUERIES.map((sq) => (
-                  <button
-                    key={sq.query}
-                    onClick={() => setInput(sq.query)}
-                    className="px-3 py-1.5 text-xs bg-card border border-border/50 rounded-full text-muted-foreground hover:text-foreground hover:border-primary/30 hover:bg-primary/5 transition-all"
-                  >
-                    {sq.icon} {sq.label}
-                  </button>
-                ))}
-              </div>
-              <p className="text-muted-foreground text-sm flex items-center">
-                <kbd className="px-2 py-1 bg-muted border border-border rounded text-muted-foreground text-xs mr-2">⌘ V</kbd>
-                to paste
-                <span className="mx-2 text-border">|</span>
-                <kbd className="px-2 py-1 bg-muted border border-border rounded text-muted-foreground text-xs mr-2">⌘ Enter</kbd>
-                to explain
-              </p>
-            </motion.div>
-          )}
-        </AnimatePresence>
+              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
+              </svg>
+              <span>Star</span>
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+              </svg>
+            </a>
 
-        {/* Result Area */}
-        <AnimatePresence mode="wait">
-          {isLoading ? (
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              className="w-full h-full flex flex-col gap-4 mt-12 max-w-[95vw]"
+            {currentUser && (
+              <button
+                onClick={() => setShowHistory(true)}
+                className="p-1.5 sm:p-2 hover:bg-muted/50 rounded-lg transition-colors"
+                title="Chat History"
+              >
+                <History className="w-4 h-4 text-muted-foreground hover:text-foreground" />
+              </button>
+            )}
+
+            <button
+              onClick={toggleTheme}
+              className="p-1.5 sm:p-2 hover:bg-muted/50 rounded-lg transition-colors"
+              title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
             >
-              {/* Skeleton */}
-              <div className="w-full bg-muted/20 border border-border/40 p-5 rounded-xl flex items-center gap-4">
-                <div className="h-10 w-10 rounded-lg bg-muted skeleton-shimmer" />
-                <div className="flex-1 space-y-2">
-                  <div className="h-4 w-1/4 rounded bg-muted skeleton-shimmer" />
-                  <div className="h-6 w-3/4 rounded bg-muted skeleton-shimmer" />
-                </div>
-              </div>
-              <div className="flex-1 flex gap-4 min-h-[400px]">
-                <div className="flex-1 rounded-xl bg-card/50 border border-border/40 p-4 space-y-4">
-                  <div className="h-8 w-full rounded bg-muted/50 skeleton-shimmer" />
-                  <div className="space-y-3 pt-4">
-                    <div className="h-4 w-full rounded bg-muted skeleton-shimmer" />
-                    <div className="h-4 w-5/6 rounded bg-muted skeleton-shimmer" />
-                    <div className="h-4 w-4/6 rounded bg-muted skeleton-shimmer" />
-                  </div>
-                </div>
-                <div className="flex-1 rounded-xl bg-card/50 border border-border/40 p-4 flex items-center justify-center">
-                  <div className="h-32 w-32 rounded-full bg-muted/50 skeleton-shimmer" />
-                </div>
-              </div>
-            </motion.div>
-          ) : result ? (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="w-full flex flex-col gap-3 mt-4 overflow-y-auto pb-8"
-            >
-              {/* Language / View Toggle Bar — shown when a non-English language is selected */}
-              {language !== 'en' && (
-                <div className="flex items-center gap-3 px-1">
-                  <span className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
-                    <Globe className="w-3.5 h-3.5" />
-                    View in:
-                  </span>
-                  <div className="flex space-x-1 bg-muted/40 p-1 rounded-lg border border-border/20">
-                    <button
-                      onClick={() => setViewMode('source')}
-                      className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${viewMode === 'source' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-                    >
-                      Source (English)
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (translatedSections) {
-                          setViewMode('translated');
-                        } else {
-                          handleTranslate(result, language);
-                        }
-                      }}
-                      disabled={isTranslating}
-                      className={`px-3 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${viewMode === 'translated' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'} disabled:opacity-50`}
-                    >
-                      {isTranslating
-                        ? <><Loader2 className="w-3 h-3 animate-spin" />Translating...</>
-                        : <>Translated ({LANGUAGE_NAMES[language]})</>
-                      }
-                    </button>
-                  </div>
-                </div>
+              {theme === 'light' ? (
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground hover:text-foreground"><circle cx="12" cy="12" r="4" /><path d="M12 2v2" /><path d="M12 20v2" /><path d="m4.93 4.93 1.41 1.41" /><path d="m17.66 17.66 1.41 1.41" /><path d="M2 12h2" /><path d="M20 12h2" /><path d="m6.34 17.66-1.41 1.41" /><path d="m19.07 4.93-1.41 1.41" /></svg>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-muted-foreground hover:text-foreground"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" /></svg>
               )}
+            </button>
 
-              {/* Main Explanation */}
-              <ResultDisplay
-                content={result}
-                theme={theme}
-                translatedSections={translatedSections ?? undefined}
-                viewMode={viewMode}
-                animationData={animationData ?? undefined}
-                language={viewMode === 'translated' ? language : 'en'}
+            {currentUser ? (
+              <UserMenu
+                user={currentUser}
+                onLogout={handleLogout}
+                onSwitchProfile={handleSwitchProfile}
               />
+            ) : (
+              <CreateProfileButton onClick={() => setShowAuthModal(true)} />
+            )}
+          </div>
+        </div>
+      </nav>
 
-              {/* Follow-up Questions */}
-              {followUpQuestions.length > 0 && (
-                <div className="flex flex-wrap gap-2 justify-center py-2">
-                  {followUpQuestions.map((fq, i) => (
-                    <button
-                      key={i}
-                      onClick={() => { setInput(fq.question); setFollowUpQuestions([]); }}
-                      className="px-4 py-2 text-sm bg-card border border-border rounded-full hover:border-primary/50 hover:bg-primary/5 transition-all text-foreground/80 hover:text-foreground"
-                    >
-                      {fq.category === 'deeper' ? '🔬' : fq.category === 'practical' ? '🛠️' : '🔗'} {fq.question}
-                    </button>
-                  ))}
-                </div>
-              )}
+      {/* Main Layout: Results + Bottom Input */}
+      <div className="flex-1 flex flex-col overflow-hidden">
 
-              {/* Active Learning — Quiz + Learning Path Buttons */}
-              {!showQuiz ? (
-                <div className="flex flex-wrap justify-center gap-3 pt-2 pb-4">
-                  <button
-                    onClick={handleGenerateQuiz}
-                    disabled={isLoadingQuiz}
-                    className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm border transition-all shadow-sm ${isLoadingQuiz ? 'bg-muted text-muted-foreground border-border cursor-not-allowed' : 'bg-card text-foreground border-border hover:border-primary/50 hover:bg-primary/5 hover:shadow-md active:scale-95'}`}
-                  >
-                    {isLoadingQuiz
-                      ? <><Loader2 className="w-4 h-4 animate-spin" />Generating Quiz...</>
-                      : <><Brain className="w-4 h-4 text-primary" />Test My Knowledge</>
-                    }
-                  </button>
-                  <button
-                    onClick={handleGenerateLearningPath}
-                    disabled={isLoadingPath}
-                    className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm border transition-all shadow-sm ${isLoadingPath ? 'bg-muted text-muted-foreground border-border cursor-not-allowed' : 'bg-card text-foreground border-border hover:border-primary/50 hover:bg-primary/5 hover:shadow-md active:scale-95'}`}
-                  >
-                    {isLoadingPath
-                      ? <><Loader2 className="w-4 h-4 animate-spin" />Generating Path...</>
-                      : <><Route className="w-4 h-4 text-primary" />Learning Path</>
-                    }
-                  </button>
-                </div>
-              ) : quizData ? (
-                <QuizDisplay quiz={quizData} onClose={() => setShowQuiz(false)} userId={currentUser?.id} />
-              ) : null}
+        {/* Results Area - Scrollable */}
+        <div ref={scrollRef} className="flex-1 overflow-y-auto">
+          <div className="max-w-7xl mx-auto px-2 sm:px-4 py-2">
 
-              {/* Learning Path Timeline */}
-              {showLearningPath && learningPath && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="w-full max-w-2xl mx-auto bg-card border border-border rounded-xl p-6 shadow-sm"
-                >
-                  <div className="flex items-center justify-between mb-6">
-                    <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
-                      <Route className="w-5 h-5 text-primary" />
-                      Learning Path: {learningPath.topic}
-                    </h3>
-                    <button onClick={() => setShowLearningPath(false)} className="p-1 text-muted-foreground hover:text-foreground">
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <div className="space-y-0">
-                    {learningPath.steps.map((step, i) => {
-                      const StepIcon = STEP_TYPE_ICONS[step.type] || BookOpen;
-                      return (
-                        <div key={i} className="flex gap-4">
-                          <div className="flex flex-col items-center">
-                            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center border-2 border-primary/30">
-                              <StepIcon className="w-4 h-4 text-primary" />
-                            </div>
-                            {i < learningPath.steps.length - 1 && (
-                              <div className="w-0.5 h-full bg-border/50 my-1" />
-                            )}
-                          </div>
-                          <div className="pb-6 flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="text-xs font-bold text-primary uppercase">{step.type}</span>
-                              <span className="text-xs text-muted-foreground">{step.estimatedTime}</span>
-                            </div>
-                            <h4 className="font-semibold text-foreground text-sm">{step.title}</h4>
-                            <p className="text-xs text-muted-foreground mt-1">{step.description}</p>
-                            {step.resources.length > 0 && (
-                              <div className="flex flex-wrap gap-1.5 mt-2">
-                                {step.resources.map((r, j) => (
-                                  <span key={j} className="text-[10px] px-2 py-0.5 bg-muted/50 border border-border/30 rounded-full text-muted-foreground">{r}</span>
-                                ))}
-                              </div>
-                            )}
-                          </div>
+            {/* Welcome Header - Only show when no result */}
+            {!result && !isLoading && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex items-center justify-center min-h-[60vh]"
+              >
+                <div className="text-center max-w-3xl">
+                  <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-foreground tracking-tight leading-tight mb-3 font-serif">
+                    Explain concepts.<br className="sm:hidden" /> Not yourself.
+                  </h1>
+                  <p className="text-muted-foreground text-base sm:text-lg mb-8">
+                    Ask anything. Get structured explanations instantly.
+                  </p>
+
+                  {/* Centered Input Box (when no results) */}
+                  <div className="max-w-2xl mx-auto mb-8">
+                    <div className="relative bg-card border border-border/50 rounded-2xl shadow-lg hover:shadow-xl transition-shadow">
+                      <textarea
+                        ref={(el) => { if (el && !result) el.focus(); }}
+                        className="w-full bg-transparent text-foreground placeholder-muted-foreground/60 p-4 pr-32 resize-none focus:outline-none text-base leading-relaxed font-sans rounded-2xl"
+                        placeholder="Ask anything..."
+                        value={input}
+                        rows={1}
+                        onChange={(e) => setInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            handleExplain();
+                          }
+                        }}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          const file = e.dataTransfer.files[0];
+                          if (file?.type.startsWith('image/')) handleImageUpload(file);
+                        }}
+                        style={{ minHeight: '52px', maxHeight: '120px' }}
+                      />
+
+                      {/* Right Side Controls */}
+                      <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                        {input && (
+                          <button onClick={() => setInput('')} className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors" title="Clear">
+                            <X className="w-4 h-4" />
+                          </button>
+                        )}
+                        <button onClick={handlePaste} className="p-1.5 text-muted-foreground hover:text-primary hover:bg-muted/50 rounded-lg transition-colors" title="Paste">
+                          <Clipboard className="w-4 h-4" />
+                        </button>
+                        <label className="p-1.5 text-muted-foreground hover:text-primary hover:bg-muted/50 rounded-lg transition-colors cursor-pointer" title="Upload Image">
+                          <ImagePlus className="w-4 h-4" />
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => e.target.files?.[0] && handleImageUpload(e.target.files[0])}
+                          />
+                        </label>
+                        <button
+                          onClick={handleExplain}
+                          disabled={isLoading || (!input.trim() && !uploadedImage)}
+                          className={`ml-1 p-2 rounded-xl font-semibold transition-all ${isLoading || (!input.trim() && !uploadedImage) ? 'bg-muted text-muted-foreground cursor-not-allowed' : 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-md hover:shadow-lg active:scale-95'}`}
+                          title="Send (Enter)"
+                        >
+                          {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ArrowRight className="w-5 h-5" />}
+                        </button>
+                      </div>
+
+                      {/* Image Preview */}
+                      {uploadedImage && (
+                        <div className="absolute bottom-full left-2 mb-2 flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-lg px-2 py-1 cursor-pointer hover:bg-primary/20 transition-colors"
+                          onClick={() => setShowImageViewer(true)}
+                        >
+                          <img src={uploadedImage.preview} alt="Upload" className="w-6 h-6 rounded object-cover" />
+                          <span className="text-xs text-primary font-medium">Image</span>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setUploadedImage(null); setShowImageViewer(false); }}
+                            className="p-0.5 text-primary/60 hover:text-primary rounded-full hover:bg-primary/10 transition-colors"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
                         </div>
-                      );
-                    })}
+                      )}
+                    </div>
+
+                    {/* Compact Controls Row */}
+                    <div className="flex items-center justify-center gap-3 mt-3">
+                      {/* Level */}
+                      <div className="flex items-center gap-1 bg-muted/40 p-0.5 rounded-lg border border-border/20">
+                        {(['Beginner', 'Intermediate', 'Advanced'] as const).map((lvl) => (
+                          <button
+                            key={lvl}
+                            onClick={() => setLevel(lvl)}
+                            className={`relative group px-2 py-1 rounded text-[10px] font-medium transition-all ${level === lvl ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                          >
+                            {lvl[0]}
+                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-0.5 text-[10px] font-medium bg-foreground text-background rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">{lvl}</span>
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Mode */}
+                      <div className="flex items-center gap-1 bg-muted/40 p-0.5 rounded-lg border border-border/20">
+                        {(['normal', 'agent'] as const).map((m) => (
+                          <button
+                            key={m}
+                            onClick={() => setMode(m)}
+                            className={`relative group p-1 rounded transition-all ${mode === m ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                          >
+                            {m === 'normal' ? <FileText className="w-3.5 h-3.5" /> : <Search className="w-3.5 h-3.5" />}
+                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-0.5 text-[10px] font-medium bg-foreground text-background rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">{m === 'normal' ? 'Normal Mode' : 'Research Mode'}</span>
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Language */}
+                      <div className="flex items-center gap-1 bg-muted/40 p-0.5 rounded-lg border border-border/20">
+                        <Globe className="w-3 h-3 text-muted-foreground ml-1" />
+                        {SUPPORTED_LANGUAGES.map((lang) => (
+                          <button
+                            key={lang}
+                            onClick={() => setLanguage(lang)}
+                            className={`relative group px-1.5 py-1 rounded text-[10px] font-medium transition-all ${language === lang ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                          >
+                            {LANGUAGE_SHORT[lang]}
+                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-0.5 text-[10px] font-medium bg-foreground text-background rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">{LANGUAGE_NAMES[lang]}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
+
+                  {/* Sample Queries */}
+                  <div className="flex flex-wrap justify-center gap-2">
+                    {SAMPLE_QUERIES.map((sq) => (
+                      <button
+                        key={sq.query}
+                        onClick={() => setInput(sq.query)}
+                        className="px-4 py-2 text-sm bg-card border border-border/50 rounded-full text-muted-foreground hover:text-foreground hover:border-primary/30 hover:bg-primary/5 transition-all"
+                      >
+                        {sq.icon} {sq.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Loading State */}
+            <AnimatePresence mode="wait">
+              {isLoading && <ImprovedSkeleton />}
+            </AnimatePresence>
+
+            {/* Results */}
+            <AnimatePresence mode="wait">
+              {!isLoading && result && (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="pb-2"
+                >
+                  {/* Main Explanation */}
+                  <ResultDisplay
+                    content={result}
+                    theme={theme}
+                    animationData={animationData ?? undefined}
+                    isLoadingAnimation={isLoadingAnimation}
+                    language={language}
+                  />
+
+                  {/* Follow-up Questions */}
+                  {followUpQuestions.length > 0 && (
+                    <div className="flex flex-wrap gap-2 justify-center py-2 mt-2">
+                      {followUpQuestions.map((fq, i) => (
+                        <button
+                          key={i}
+                          onClick={() => { setInput(fq.question); setFollowUpQuestions([]); }}
+                          className="px-4 py-2 text-sm bg-card border border-border rounded-full hover:border-primary/50 hover:bg-primary/5 transition-all text-foreground/80 hover:text-foreground"
+                        >
+                          {fq.category === 'deeper' ? '🔬' : fq.category === 'practical' ? '🛠️' : '🔗'} {fq.question}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Active Learning Buttons */}
+                  {!showQuiz && (
+                    <div className="flex flex-wrap justify-center gap-2 py-2">
+                      <button
+                        onClick={handleGenerateQuiz}
+                        disabled={isLoadingQuiz}
+                        className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm border transition-all shadow-sm ${isLoadingQuiz ? 'bg-muted text-muted-foreground border-border cursor-not-allowed' : 'bg-card text-foreground border-border hover:border-primary/50 hover:bg-primary/5 hover:shadow-md active:scale-95'}`}
+                      >
+                        {isLoadingQuiz
+                          ? <><Loader2 className="w-4 h-4 animate-spin" />Generating Quiz...</>
+                          : <><Brain className="w-4 h-4 text-primary" />Test My Knowledge</>
+                        }
+                      </button>
+                      <button
+                        onClick={handleGenerateLearningPath}
+                        disabled={isLoadingPath}
+                        className={`flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-sm border transition-all shadow-sm ${isLoadingPath ? 'bg-muted text-muted-foreground border-border cursor-not-allowed' : 'bg-card text-foreground border-border hover:border-primary/50 hover:bg-primary/5 hover:shadow-md active:scale-95'}`}
+                      >
+                        {isLoadingPath
+                          ? <><Loader2 className="w-4 h-4 animate-spin" />Generating Path...</>
+                          : <><Route className="w-4 h-4 text-primary" />Learning Path</>
+                        }
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Quiz Display */}
+                  {showQuiz && quizData && (
+                    <QuizDisplay quiz={quizData} onClose={() => setShowQuiz(false)} userId={currentUser?.id} />
+                  )}
+
+                  {/* Learning Path */}
+                  {showLearningPath && learningPath && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="w-full max-w-2xl mx-auto bg-card border border-border rounded-xl p-6 shadow-sm mt-4"
+                    >
+                      <div className="flex items-center justify-between mb-6">
+                        <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                          <Route className="w-5 h-5 text-primary" />
+                          Learning Path: {learningPath.topic}
+                        </h3>
+                        <button onClick={() => setShowLearningPath(false)} className="p-1 text-muted-foreground hover:text-foreground">
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <div className="space-y-0">
+                        {learningPath.steps.map((step, i) => {
+                          const StepIcon = STEP_TYPE_ICONS[step.type] || BookOpen;
+                          return (
+                            <div key={i} className="flex gap-4">
+                              <div className="flex flex-col items-center">
+                                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center border-2 border-primary/30">
+                                  <StepIcon className="w-4 h-4 text-primary" />
+                                </div>
+                                {i < learningPath.steps.length - 1 && (
+                                  <div className="w-0.5 h-full bg-border/50 my-1" />
+                                )}
+                              </div>
+                              <div className="pb-6 flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-xs font-bold text-primary uppercase">{step.type}</span>
+                                  <span className="text-xs text-muted-foreground">{step.estimatedTime}</span>
+                                </div>
+                                <h4 className="font-semibold text-foreground text-sm">{step.title}</h4>
+                                <p className="text-xs text-muted-foreground mt-1">{step.description}</p>
+                                {step.resources.length > 0 && (
+                                  <div className="flex flex-wrap gap-1.5 mt-2">
+                                    {step.resources.map((r, j) => (
+                                      <span key={j} className="text-[10px] px-2 py-0.5 bg-muted/50 border border-border/30 rounded-full text-muted-foreground">{r}</span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </motion.div>
+                  )}
                 </motion.div>
               )}
+            </AnimatePresence>
+          </div>
+        </div>
 
-            </motion.div>
-          ) : null}
-        </AnimatePresence>
+        {/* Input Area - Sticky Bottom (only show when results exist) */}
+        {(result || isLoading) && (
+          <div className="border-t border-border/50 bg-background/95 backdrop-blur-xl">
+            <div className="max-w-5xl mx-auto px-2 sm:px-4 py-3">
+              <div className="relative">
+                {/* Compact Input */}
+                <div className="relative bg-card border border-border/50 rounded-2xl shadow-lg hover:shadow-xl transition-shadow">
+                  <textarea
+                    className="w-full bg-transparent text-foreground placeholder-muted-foreground/60 p-3 sm:p-4 pr-32 resize-none focus:outline-none text-sm sm:text-base leading-relaxed font-sans rounded-2xl"
+                    placeholder="Ask anything..."
+                    value={input}
+                    rows={1}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleExplain();
+                      }
+                    }}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const file = e.dataTransfer.files[0];
+                      if (file?.type.startsWith('image/')) handleImageUpload(file);
+                    }}
+                    style={{ minHeight: '44px', maxHeight: '120px' }}
+                  />
 
-      </div>
+                  {/* Right Side Controls */}
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                    {input && (
+                      <button onClick={() => setInput('')} className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors" title="Clear">
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                    <button onClick={handlePaste} className="p-1.5 text-muted-foreground hover:text-primary hover:bg-muted/50 rounded-lg transition-colors" title="Paste">
+                      <Clipboard className="w-4 h-4" />
+                    </button>
+                    <label className="p-1.5 text-muted-foreground hover:text-primary hover:bg-muted/50 rounded-lg transition-colors cursor-pointer" title="Upload Image">
+                      <ImagePlus className="w-4 h-4" />
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => e.target.files?.[0] && handleImageUpload(e.target.files[0])}
+                      />
+                    </label>
+                    <button
+                      onClick={handleExplain}
+                      disabled={isLoading || (!input.trim() && !uploadedImage)}
+                      className={`ml-1 p-2 rounded-xl font-semibold transition-all ${isLoading || (!input.trim() && !uploadedImage) ? 'bg-muted text-muted-foreground cursor-not-allowed' : 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-md hover:shadow-lg active:scale-95'}`}
+                      title="Send (Enter)"
+                    >
+                      {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ArrowRight className="w-5 h-5" />}
+                    </button>
+                  </div>
 
-      {/* Top Right Controls */}
-      <div className="fixed top-2 sm:top-4 right-2 sm:right-4 z-50 flex items-center gap-1.5 sm:gap-2">
-        {/* User Menu or Create Profile Button */}
-        {currentUser ? (
-          <UserMenu
-            user={currentUser}
-            onLogout={handleLogout}
-            onSwitchProfile={handleSwitchProfile}
-          />
-        ) : (
-          <CreateProfileButton onClick={() => setShowAuthModal(true)} />
+                  {/* Image Preview */}
+                  {uploadedImage && (
+                    <div className="absolute bottom-full left-2 mb-2 flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-lg px-2 py-1 cursor-pointer hover:bg-primary/20 transition-colors"
+                      onClick={() => setShowImageViewer(true)}
+                    >
+                      <img src={uploadedImage.preview} alt="Upload" className="w-6 h-6 rounded object-cover" />
+                      <span className="text-xs text-primary font-medium">Image</span>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setUploadedImage(null); setShowImageViewer(false); }}
+                        className="p-0.5 text-primary/60 hover:text-primary rounded-full hover:bg-primary/10 transition-colors"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Compact Controls Row */}
+                <div className="flex items-center justify-between mt-2 px-1">
+                  <div className="flex items-center gap-2">
+                    {/* Level */}
+                    <div className="flex items-center gap-1 bg-muted/40 p-0.5 rounded-lg border border-border/20">
+                      {(['Beginner', 'Intermediate', 'Advanced'] as const).map((lvl) => (
+                        <button
+                          key={lvl}
+                          onClick={() => setLevel(lvl)}
+                          className={`relative group px-2 py-1 rounded text-[10px] font-medium transition-all ${level === lvl ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                        >
+                          {lvl[0]}
+                          <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-0.5 text-[10px] font-medium bg-foreground text-background rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">{lvl}</span>
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Mode */}
+                    <div className="flex items-center gap-1 bg-muted/40 p-0.5 rounded-lg border border-border/20">
+                      {(['normal', 'agent'] as const).map((m) => (
+                        <button
+                          key={m}
+                          onClick={() => setMode(m)}
+                          className={`relative group p-1 rounded transition-all ${mode === m ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                        >
+                          {m === 'normal' ? <FileText className="w-3.5 h-3.5" /> : <Search className="w-3.5 h-3.5" />}
+                          <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-0.5 text-[10px] font-medium bg-foreground text-background rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">{m === 'normal' ? 'Normal Mode' : 'Research Mode'}</span>
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Language */}
+                    <div className="flex items-center gap-1 bg-muted/40 p-0.5 rounded-lg border border-border/20">
+                      <Globe className="w-3 h-3 text-muted-foreground ml-1" />
+                      {SUPPORTED_LANGUAGES.map((lang) => (
+                        <button
+                          key={lang}
+                          onClick={() => setLanguage(lang)}
+                          className={`relative group px-1.5 py-1 rounded text-[10px] font-medium transition-all ${language === lang ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+                        >
+                          {LANGUAGE_SHORT[lang]}
+                          <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-0.5 text-[10px] font-medium bg-foreground text-background rounded whitespace-nowrap opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity">{LANGUAGE_NAMES[lang]}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Keyboard Hint */}
+                  <div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground">
+                    <kbd className="px-2 py-0.5 bg-muted border border-border rounded text-[10px]">Enter</kbd>
+                    <span>to send</span>
+                    <span className="text-border">•</span>
+                    <kbd className="px-2 py-0.5 bg-muted border border-border rounded text-[10px]">Shift+Enter</kbd>
+                    <span>new line</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
-
-        {/* History Button - only show if logged in */}
-        {currentUser && (
-          <button
-            onClick={() => setShowHistory(true)}
-            className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-card/50 backdrop-blur border border-border/50 rounded-full text-foreground hover:bg-muted/50 transition-all shadow-sm text-xs sm:text-sm"
-            title="Chat History"
-          >
-            <History className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            <span className="hidden sm:inline text-xs font-medium">History</span>
-          </button>
-        )}
-
-        {/* Theme Toggle */}
-        <button
-          onClick={toggleTheme}
-          className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 sm:py-2 bg-card/50 backdrop-blur border border-border/50 rounded-full text-foreground hover:bg-muted/50 transition-all shadow-sm"
-        >
-          {theme === 'light' ? (
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" className="sm:w-4 sm:h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4" /><path d="M12 2v2" /><path d="M12 20v2" /><path d="m4.93 4.93 1.41 1.41" /><path d="m17.66 17.66 1.41 1.41" /><path d="M2 12h2" /><path d="M20 12h2" /><path d="m6.34 17.66-1.41 1.41" /><path d="m19.07 4.93-1.41 1.41" /></svg>
-          ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" className="sm:w-4 sm:h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" /></svg>
-          )}
-          <span className="text-xs font-medium hidden md:inline">{theme === 'light' ? 'Light' : 'Dark'}</span>
-        </button>
       </div>
 
       {/* Profile Creation Prompt - shows after 2 questions */}

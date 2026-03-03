@@ -41,7 +41,7 @@ export async function generateQuiz(
   level: "Beginner" | "Intermediate" | "Advanced"
 ): Promise<QuizData> {
   // Trim to avoid token overuse; the structured explanation is enough context
-  const contentSnippet = explanationContent.substring(0, 1800);
+  const contentSnippet = explanationContent.substring(0, 1200);
 
   const prompt = `Skill level: ${level}
 
@@ -50,7 +50,7 @@ ${contentSnippet}
 
 Generate 4 multiple-choice questions as a JSON object.`;
 
-  const response = await invokeModelWithFallback(prompt, QUIZ_SYSTEM_PROMPT, 1200);
+  const response = await invokeModelWithFallback(prompt, QUIZ_SYSTEM_PROMPT, 800);
 
   let cleaned = response.content.trim();
 

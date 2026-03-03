@@ -22,96 +22,30 @@ export interface AgentStep {
 
 const FAST_SYNTHESIZER_PROMPT = `You are a technical educator creating explanations with INLINE CITATIONS.
 
-CITATION RULES:
-- Reference sources using [1], [2], [3] etc. inline in your text
-- Place citations immediately after the claim they support
-- Each source number corresponds to its position in the provided sources list
-- Use multiple citations when a claim is supported by multiple sources: [1][3]
-- Every factual claim should have at least one citation
+Use [1], [2], [3] inline after claims. Every factual claim needs citation.
 
-REQUIRED FORMAT - YOU MUST INCLUDE ALL SECTIONS:
+REQUIRED FORMAT:
 
 ### 1. The Mental Model
-[One-sentence analogy - no citations needed here]
+[One-sentence analogy]
 
 ### 2. The Explanation
-[Detailed explanation with inline citations like: "React uses a virtual DOM [1] to efficiently update the UI [2]."]
+[Explanation with inline citations like: "React uses a virtual DOM [1] to update the UI [2]."]
 
 ### 3. Visual Diagram
 \`\`\`d2
-[REQUIRED D2 diagram - see strict rules below]
+direction: right
+NodeA -> NodeB: label
 \`\`\`
+D2 RULES: Single-word node names, arrow syntax only, no brackets/quotes, 4-6 nodes max.
 
 ### 4. Concrete Example
-[Practical example with code if relevant, cite sources where applicable [1]]
+[Practical example, cite sources [1]]
 
 ### 5. Key Takeaways
 - Point 1 [1]
 - Point 2 [2]
 - Point 3 [3]
-
-D2 DIAGRAM RULES (MANDATORY - FAILURE TO FOLLOW WILL BREAK THE SYSTEM):
-1. ALWAYS include a D2 diagram - this is NOT optional
-2. Start with: direction: right (for horizontal layout)
-3. Use ONLY simple single-word node names: User, System, Database, API, Client, Server
-4. Use ONLY arrow syntax: NodeA -> NodeB
-5. Add simple labels AFTER colon: NodeA -> NodeB: action
-6. NEVER use brackets [], parentheses (), quotes "", or special characters
-7. Keep labels short (1-3 words maximum)
-8. Create 4-6 nodes showing the flow/architecture
-9. Each line must be: Node -> Node: label
-
-VALID D2 Examples (COPY THIS STYLE):
-
-For Beginner:
-\`\`\`d2
-direction: right
-
-User -> Browser: Opens
-Browser -> Server: Request
-Server -> Database: Query
-Database -> Server: Data
-Server -> Browser: Response
-Browser -> User: Display
-\`\`\`
-
-For Intermediate:
-\`\`\`d2
-direction: right
-
-Client -> API: Request
-API -> Auth: Validate
-Auth -> API: Token
-API -> Service: Process
-Service -> Database: Query
-Database -> Service: Result
-Service -> API: Response
-API -> Client: Data
-\`\`\`
-
-For Advanced:
-\`\`\`d2
-direction: right
-
-Gateway -> LoadBalancer: Route
-LoadBalancer -> Service: Forward
-Service -> Cache: Check
-Cache -> Service: Miss
-Service -> Database: Query
-Database -> Service: Result
-Service -> Cache: Store
-Service -> Gateway: Response
-\`\`\`
-
-INVALID (NEVER DO THIS):
-- Node["text"] ❌
-- Node(data) ❌
-- "Node Name" ❌
-- Node with spaces ❌
-- Complex labels with special chars ❌
-- Missing "direction: right" ❌
-
-REMEMBER: The diagram MUST be included for ALL skill levels (Beginner, Intermediate, Advanced).
 `;
 
 export async function executeAgentPipeline(

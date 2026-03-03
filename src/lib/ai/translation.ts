@@ -91,6 +91,60 @@ export async function translateText(
   }
 }
 
+// Translates the entire markdown explanation while preserving code blocks and technical terms
+export async function translateFullExplanation(
+  content: string,
+  targetLanguage: SupportedLanguage
+): Promise<string> {
+  if (targetLanguage === "en" || !content.trim()) {
+    return content;
+  }
+
+  // Split content into sections to translate separately (better quality)
+  const sections = content.split(/(?=###)/);
+  const translatedSections: string[] = [];
+
+  for (const section of sections) {
+    // Skip empty sections
+    if (!section.trim()) continue;
+
+    // Check if section contains code blocks or diagrams - preserve those
+    if (section.includes('```')) {
+      // Extract code blocks and translate around them
+      const parts = section.split(/(```[\s\S]*?```)/);
+      const translatedParts: string[] = [];
+      
+      for (const part of parts) {
+        if (part.startsWith('```')) {
+          // Keep code blocks as-is
+          translatedParts.push(part);
+        } else if (part.trim()) {
+          // Translate text parts
+          try {
+            const translated = await translateText(part, targetLanguage);
+            translatedParts.push(translated);
+          } catch (err) {
+            console.warn('[Translation] Section failed, keeping original');
+            translatedParts.push(part);
+          }
+        }
+      }
+      translatedSections.push(translatedParts.join(''));
+    } else {
+      // Translate entire section
+      try {
+        const translated = await translateText(section, targetLanguage);
+        translatedSections.push(translated);
+      } catch (err) {
+        console.warn('[Translation] Section failed, keeping original');
+        translatedSections.push(section);
+      }
+    }
+  }
+
+  return translatedSections.join('\n');
+}
+
 // Extracts and translates the key narrative sections from a markdown explanation.
 // Only the Mental Model and Key Takeaways are translated; technical code and
 // diagrams are intentionally kept in English.

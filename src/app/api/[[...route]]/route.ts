@@ -16,7 +16,7 @@ ensureTableExists().catch((error) => {
 app.post('/explain', async (c) => {
     try {
         const body = await c.req.json();
-        const { content, level = 'Beginner', mode = 'normal', userId = 'anonymous' } = body;
+        const { content, level = 'Beginner', mode = 'normal', userId = 'anonymous', language = 'en' } = body;
 
         if (!content) {
             return c.json({ error: 'Content is required' }, 400);
@@ -25,7 +25,7 @@ app.post('/explain', async (c) => {
         const stream = new ReadableStream({
             async start(controller) {
                 try {
-                    for await (const chunk of handleChat({ content, level, mode, userId })) {
+                    for await (const chunk of handleChat({ content, level, mode, userId, language })) {
                         controller.enqueue(new TextEncoder().encode(chunk));
                     }
                     controller.close();
@@ -52,8 +52,7 @@ app.post('/explain', async (c) => {
 })
 
 // ── Translation endpoint ───────────────────────────────────────────────────────
-// Translates the Mental Model and Key Takeaways sections of a markdown explanation
-// into a target Indian language using Amazon Translate.
+// Translates the full explanation into a target Indian language using Amazon Translate.
 app.post('/translate', async (c) => {
     try {
         const body = await c.req.json();
@@ -63,8 +62,8 @@ app.post('/translate', async (c) => {
             return c.json({ error: 'content and targetLanguage are required' }, 400);
         }
 
-        const { translateMarkdownSections } = await import('@/lib/ai/translation');
-        const translated = await translateMarkdownSections(content, targetLanguage);
+        const { translateFullExplanation } = await import('@/lib/ai/translation');
+        const translated = await translateFullExplanation(content, targetLanguage);
 
         return c.json({ translated });
 

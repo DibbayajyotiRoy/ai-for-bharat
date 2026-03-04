@@ -5,10 +5,9 @@ import {
   CreateLogStreamCommand,
   DescribeLogStreamsCommand,
 } from "@aws-sdk/client-cloudwatch-logs";
+import { getAwsConfig } from "./aws-config";
 
-const client = new CloudWatchLogsClient({
-  region: process.env.AWS_REGION || "us-east-1",
-});
+const client = new CloudWatchLogsClient(getAwsConfig());
 
 const LOG_GROUP = "/learning-copilot/api";
 const LOG_STREAM = `stream-${Date.now()}`;

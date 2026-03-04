@@ -3,10 +3,9 @@ import {
   RetrieveCommand,
   RetrieveCommandInput,
 } from "@aws-sdk/client-bedrock-agent-runtime";
+import { getAwsConfig } from "../aws-config";
 
-const client = new BedrockAgentRuntimeClient({
-  region: process.env.AWS_REGION || "us-east-1",
-});
+const client = new BedrockAgentRuntimeClient(getAwsConfig());
 
 const KNOWLEDGE_BASE_ID = process.env.BEDROCK_KNOWLEDGE_BASE_ID || "";
 

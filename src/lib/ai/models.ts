@@ -4,10 +4,9 @@ import {
   InvokeModelWithResponseStreamCommand,
 } from "@aws-sdk/client-bedrock-runtime";
 import { getGuardrailConfig } from "./guardrails";
+import { getAwsConfig } from "../aws-config";
 
-const client = new BedrockRuntimeClient({
-  region: process.env.AWS_REGION || "us-east-1",
-});
+const client = new BedrockRuntimeClient(getAwsConfig());
 
 // Prioritized model list with fallback
 const MODELS = [
@@ -39,10 +38,10 @@ export async function invokeModelWithFallback(
 
   for (let i = 0; i < MODELS.length; i++) {
     const model = MODELS[i];
-    
+
     try {
       console.log(`[AI] Attempting model: ${model.name}`);
-      
+
       const payload = {
         messages: [
           {
@@ -78,7 +77,7 @@ export async function invokeModelWithFallback(
       }
 
       console.log(`[AI] Success with ${model.name}`);
-      
+
       return {
         content,
         modelUsed: model.name,
@@ -113,10 +112,10 @@ export async function* streamModelWithFallback(
 
   for (let i = 0; i < MODELS.length; i++) {
     const model = MODELS[i];
-    
+
     try {
       console.log(`[AI] Attempting streaming with model: ${model.name}`);
-      
+
       const payload = {
         messages: [
           {

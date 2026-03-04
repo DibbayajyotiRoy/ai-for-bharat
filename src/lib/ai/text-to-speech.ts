@@ -1,8 +1,7 @@
 import { PollyClient, SynthesizeSpeechCommand, type VoiceId, type LanguageCode } from "@aws-sdk/client-polly";
+import { getAwsConfig } from "../aws-config";
 
-const client = new PollyClient({
-  region: process.env.AWS_REGION || "us-east-1",
-});
+const client = new PollyClient(getAwsConfig());
 
 export async function synthesizeSpeech(
   text: string,

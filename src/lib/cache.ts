@@ -1,8 +1,9 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, GetCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
 import crypto from "crypto";
+import { getAwsConfig } from "./aws-config";
 
-const client = new DynamoDBClient({ region: process.env.AWS_REGION || "us-east-1" });
+const client = new DynamoDBClient(getAwsConfig());
 const docClient = DynamoDBDocumentClient.from(client);
 
 const CACHE_TABLE = "learning-copilot-cache";
@@ -42,7 +43,7 @@ export async function getCachedResponse(
 ): Promise<string | null> {
   try {
     const cacheKey = generateCacheKey(content, level, mode);
-    
+
     const result = await docClient.send(
       new GetCommand({
         TableName: CACHE_TABLE,

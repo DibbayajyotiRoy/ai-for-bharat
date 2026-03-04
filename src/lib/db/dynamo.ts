@@ -7,10 +7,9 @@ import {
   UpdateTimeToLiveCommand,
 } from "@aws-sdk/client-dynamodb";
 import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
+import { getAwsConfig } from "../aws-config";
 
-const client = new DynamoDBClient({
-  region: process.env.AWS_REGION || "us-east-1",
-});
+const client = new DynamoDBClient(getAwsConfig());
 
 const TABLE_NAME = "learning-copilot-history";
 const TTL_DAYS = 30; // Conversations expire after 30 days
@@ -58,7 +57,7 @@ async function createTable(): Promise<void> {
 
   await client.send(command);
   console.log("[DynamoDB] Table created successfully");
-  
+
   // Enable TTL separately
   try {
     const { UpdateTimeToLiveCommand } = await import("@aws-sdk/client-dynamodb");

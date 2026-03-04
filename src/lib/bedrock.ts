@@ -2,10 +2,9 @@ import {
   BedrockRuntimeClient,
   InvokeModelCommand,
 } from "@aws-sdk/client-bedrock-runtime";
+import { getAwsConfig } from "./aws-config";
 
-const client = new BedrockRuntimeClient({
-  region: "us-east-1",
-});
+const client = new BedrockRuntimeClient(getAwsConfig());
 
 export async function invokeNova(prompt: string) {
   const modelId = "amazon.nova-pro-v1:0";

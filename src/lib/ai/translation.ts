@@ -3,10 +3,9 @@ import {
   TranslateTextCommand,
 } from "@aws-sdk/client-translate";
 import { invokeModelWithFallback } from "./models";
+import { getAwsConfig } from "../aws-config";
 
-const translateClient = new TranslateClient({
-  region: process.env.AWS_REGION || "us-east-1",
-});
+const translateClient = new TranslateClient(getAwsConfig());
 
 export type SupportedLanguage = "en" | "hi" | "bn" | "mr";
 
@@ -113,7 +112,7 @@ export async function translateFullExplanation(
       // Extract code blocks and translate around them
       const parts = section.split(/(```[\s\S]*?```)/);
       const translatedParts: string[] = [];
-      
+
       for (const part of parts) {
         if (part.startsWith('```')) {
           // Keep code blocks as-is

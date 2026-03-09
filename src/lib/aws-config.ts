@@ -7,11 +7,20 @@
  */
 
 export function getAwsConfig() {
-    return {
-        region: process.env.APP_AWS_REGION || "us-east-1",
-        credentials: {
-            accessKeyId: process.env.APP_AWS_ACCESS_KEY_ID || "",
-            secretAccessKey: process.env.APP_AWS_SECRET_ACCESS_KEY || "",
-        },
-    };
+    const accessKeyId = process.env.APP_AWS_ACCESS_KEY_ID;
+    const secretAccessKey = process.env.APP_AWS_SECRET_ACCESS_KEY;
+    const sessionToken = process.env.APP_AWS_SESSION_TOKEN;
+    const region = process.env.APP_AWS_REGION || "us-east-1";
+
+    const config: any = { region };
+
+    if (accessKeyId && secretAccessKey) {
+        config.credentials = {
+            accessKeyId,
+            secretAccessKey,
+            sessionToken,
+        };
+    }
+
+    return config;
 }

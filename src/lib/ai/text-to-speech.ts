@@ -1,7 +1,14 @@
 import { PollyClient, SynthesizeSpeechCommand, type VoiceId, type LanguageCode } from "@aws-sdk/client-polly";
 import { getAwsConfig } from "../aws-config";
 
-const client = new PollyClient(getAwsConfig());
+let client: PollyClient | null = null;
+
+function getClient() {
+  if (!client) {
+    client = new PollyClient(getAwsConfig());
+  }
+  return client;
+}
 
 export async function synthesizeSpeech(
   text: string,
@@ -40,7 +47,7 @@ export async function synthesizeSpeech(
         Engine: attempt.engine || "neural",
       });
 
-      const response = await client.send(command);
+      const response = await getClient().send(command);
 
       if (!response.AudioStream) {
         throw new Error("No audio stream returned from Polly");
@@ -61,4 +68,3 @@ export async function synthesizeSpeech(
 
   throw new Error(`TTS failed for language ${languageCode}: all voice attempts exhausted`);
 }
-

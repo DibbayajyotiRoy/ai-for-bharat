@@ -6,7 +6,14 @@ import {
 import { getGuardrailConfig } from "./guardrails";
 import { getAwsConfig } from "../aws-config";
 
-const client = new BedrockRuntimeClient(getAwsConfig());
+let client: BedrockRuntimeClient | null = null;
+
+function getClient() {
+  if (!client) {
+    client = new BedrockRuntimeClient(getAwsConfig());
+  }
+  return client;
+}
 
 // Prioritized model list with fallback
 const MODELS = [
@@ -68,7 +75,7 @@ export async function invokeModelWithFallback(
         }),
       });
 
-      const response = await client.send(command);
+      const response = await getClient().send(command);
       const decoded = JSON.parse(new TextDecoder().decode(response.body));
       const content = decoded.output?.message?.content?.[0]?.text;
 
@@ -142,7 +149,7 @@ export async function* streamModelWithFallback(
         }),
       });
 
-      const response = await client.send(command);
+      const response = await getClient().send(command);
 
       if (!response.body) {
         throw new Error("No response body");

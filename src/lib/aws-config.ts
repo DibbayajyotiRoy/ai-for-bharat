@@ -18,7 +18,7 @@ export function getAwsConfig() {
         config.credentials = {
             accessKeyId,
             secretAccessKey,
-            sessionToken,
+            sessionToken: sessionToken || undefined,
         };
     }
 

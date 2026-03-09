@@ -9,7 +9,14 @@ import {
 import { marshall, unmarshall } from "@aws-sdk/util-dynamodb";
 import { getAwsConfig } from "../aws-config";
 
-const client = new DynamoDBClient(getAwsConfig());
+let client: DynamoDBClient | null = null;
+
+function getClient() {
+  if (!client) {
+    client = new DynamoDBClient(getAwsConfig());
+  }
+  return client;
+}
 
 const TABLE_NAME = "learning-copilot-history";
 const TTL_DAYS = 30; // Conversations expire after 30 days
@@ -27,7 +34,7 @@ export interface Interaction {
 
 export async function ensureTableExists(): Promise<void> {
   try {
-    await client.send(
+    await getClient().send(
       new DescribeTableCommand({ TableName: TABLE_NAME })
     );
     console.log("[DynamoDB] Table exists");
@@ -55,13 +62,13 @@ async function createTable(): Promise<void> {
     BillingMode: "PAY_PER_REQUEST",
   });
 
-  await client.send(command);
+  await getClient().send(command);
   console.log("[DynamoDB] Table created successfully");
 
   // Enable TTL separately
   try {
     const { UpdateTimeToLiveCommand } = await import("@aws-sdk/client-dynamodb");
-    await client.send(
+    await getClient().send(
       new UpdateTimeToLiveCommand({
         TableName: TABLE_NAME,
         TimeToLiveSpecification: {
@@ -87,7 +94,7 @@ export async function saveInteraction(
       expiresAt,
     });
 
-    await client.send(
+    await getClient().send(
       new PutItemCommand({
         TableName: TABLE_NAME,
         Item: item,
@@ -116,7 +123,7 @@ export async function fetchRecentInteractions(
       Limit: limit,
     });
 
-    const response = await client.send(command);
+    const response = await getClient().send(command);
 
     if (!response.Items) {
       return [];
@@ -129,24 +136,10 @@ export async function fetchRecentInteractions(
   }
 }
 
-// ── Spaced Repetition ─────────────────────────────────────────────────────
-const REVIEW_TABLE = "learning-copilot-reviews";
-
-export interface ReviewRecord {
-  userId: string;
-  topic: string;
-  easeFactor: number;
-  interval: number;
-  repetitions: number;
-  nextReviewDate: number;
-  lastScore: number;
-  expiresAt: number;
-}
-
 export async function saveReviewItem(item: Omit<ReviewRecord, "expiresAt">): Promise<void> {
   try {
     const expiresAt = Math.floor(Date.now() / 1000) + 90 * 24 * 60 * 60; // 90-day TTL
-    await client.send(
+    await getClient().send(
       new PutItemCommand({
         TableName: REVIEW_TABLE,
         Item: marshall({ ...item, expiresAt }),
@@ -166,7 +159,7 @@ export async function fetchDueReviews(userId: string): Promise<ReviewRecord[]> {
       FilterExpression: "nextReviewDate <= :now",
       ExpressionAttributeValues: marshall({ ":uid": userId, ":now": Date.now() }),
     });
-    const response = await client.send(command);
+    const response = await getClient().send(command);
     return (response.Items || []).map((item) => unmarshall(item) as ReviewRecord);
   } catch (error: any) {
     console.warn("[DynamoDB] Review fetch failed:", error.message);
@@ -185,4 +178,18 @@ export function summarizeHistory(interactions: Interaction[]): string {
     .join("\n\n");
 
   return `\n\n--- Recent Context ---\n${summary}\n--- End Context ---\n`;
+}
+
+// Spaced Repetition configuration
+const REVIEW_TABLE = "learning-copilot-reviews";
+
+export interface ReviewRecord {
+  userId: string;
+  topic: string;
+  easeFactor: number;
+  interval: number;
+  repetitions: number;
+  nextReviewDate: number;
+  lastScore: number;
+  expiresAt: number;
 }

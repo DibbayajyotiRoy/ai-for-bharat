@@ -4,7 +4,14 @@ import {
 } from "@aws-sdk/client-bedrock-runtime";
 import { getAwsConfig } from "./aws-config";
 
-const client = new BedrockRuntimeClient(getAwsConfig());
+let client: BedrockRuntimeClient | null = null;
+
+function getClient() {
+  if (!client) {
+    client = new BedrockRuntimeClient(getAwsConfig());
+  }
+  return client;
+}
 
 export async function invokeNova(prompt: string) {
   const modelId = "amazon.nova-pro-v1:0";
@@ -30,7 +37,7 @@ export async function invokeNova(prompt: string) {
     body: JSON.stringify(payload),
   });
 
-  const response = await client.send(command);
+  const response = await getClient().send(command);
 
   const decoded = JSON.parse(
     new TextDecoder().decode(response.body)

@@ -5,7 +5,14 @@ import {
 import { invokeModelWithFallback } from "./models";
 import { getAwsConfig } from "../aws-config";
 
-const translateClient = new TranslateClient(getAwsConfig());
+let translateClient: TranslateClient | null = null;
+
+function getTranslateClient() {
+  if (!translateClient) {
+    translateClient = new TranslateClient(getAwsConfig());
+  }
+  return translateClient;
+}
 
 export type SupportedLanguage = "en" | "hi" | "bn" | "mr";
 
@@ -37,7 +44,7 @@ async function translateViaAmazon(text: string, targetLanguage: SupportedLanguag
     SourceLanguageCode: "en",
     TargetLanguageCode: targetLanguage,
   });
-  const response = await translateClient.send(command);
+  const response = await getTranslateClient().send(command);
   return response.TranslatedText || text;
 }
 

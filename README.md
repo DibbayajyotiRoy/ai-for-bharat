@@ -4,6 +4,10 @@
 
 Built for the **AWS AI Hackathon** · [Live Demo](#) · [Architecture](./ARCHITECTURE.md)
 
+<p align="center">
+  <img src="docs/assets/demo.gif" alt="Learning Copilot Demo" width="720" />
+</p>
+
 ---
 
 ## What It Does

@@ -131,7 +131,7 @@ See [docs/DEPLOYMENT_GUIDE.md](./docs/DEPLOYMENT_GUIDE.md)
 - [x] AWS Bedrock integration with multi-model fallback
 - [x] DynamoDB conversation memory with TTL
 - [x] CloudWatch logging, metrics, dashboards
-- [x] Research mode with curated topic-specific sources
+- [x] Research mode with static, curated source maps (per-topic)
 - [x] Interactive D2 diagrams with ELK layout + zoom/pan
 - [x] D2 syntax validation and auto-fallback
 - [x] Adaptive skill levels (Beginner / Intermediate / Advanced)
@@ -139,7 +139,7 @@ See [docs/DEPLOYMENT_GUIDE.md](./docs/DEPLOYMENT_GUIDE.md)
 - [x] Code syntax highlighting with copy
 
 ### In Progress
-- [ ] Live web search API integration (Tavily, Serper, Brave)
+- [ ] Research mode upgrade: live web search via Tavily / Serper / Brave API
 
 ### Planned
 - [ ] User authentication (AWS Cognito)

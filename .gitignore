@@ -36,6 +36,11 @@ yarn-error.log*
 # vercel
 .vercel
 
+# AI IDE tooling (Kiro, Claude, Qodo)
+.kiro/
+.claude/
+.qodo/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
